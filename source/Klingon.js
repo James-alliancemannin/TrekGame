@@ -15,7 +15,7 @@ class HostileEnemy extends GameObject
 
     onTorpedoSplashDamage(energy, game)
     {
-        gameOutputAppend("\nOverload splash strikes " + this.enemyDescription(game) + " at subsector " + this.subsectorString() + " for " + energy + " damage.");
+        gameOutputAppend("\nTACTICAL: Overload shockwave washes over " + this.enemyDescription(game) + " at subsector " + this.subsectorString() + " for " + energy + " damage.");
         this.shields -= energy;
 
         if (this.shields <= 0)
@@ -234,7 +234,7 @@ class Klingon extends HostileEnemy
         {
             let phaserDamage = Math.round(this.phaserDamageBase(dist) * Klingon.AggressiveStrikeMultiplier * randomInt(Klingon.MinPhaserMultiplier, Klingon.MaxPhaserMultiplier));
             let sstr = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
-            gameOutputAppend("\nKlingon close assault from subsector " + sstr + " for " + phaserDamage + " units");
+            gameOutputAppend("\nRED ALERT: Klingon close assault from subsector " + sstr + " for " + phaserDamage + " units; evasive pattern compromised.");
             target.onPhaserHit(phaserDamage, game);
             return;
         }
@@ -283,7 +283,7 @@ class Borg extends HostileEnemy
         let adjustedEnergy = Math.floor(energy * (1.0 - this.phaserResistance));
         if (this.phaserResistance > 0)
         {
-            gameOutputAppend("\nBorg adaptation reduces phaser damage by " + Math.round(100 * this.phaserResistance) + "%.");
+            gameOutputAppend("\nWARNING: Borg adaptation matrix reduces phaser damage by " + Math.round(100 * this.phaserResistance) + "%.");
         }
 
         super.onPhaserHit(adjustedEnergy, game);
@@ -294,7 +294,7 @@ class Borg extends HostileEnemy
             this.phaserResistance = Math.min(Borg.MaxPhaserResistance, this.phaserResistance + Borg.PhaserResistanceStep);
             if (this.phaserResistance > oldResistance)
             {
-                gameOutputAppend("Borg shields adapt to the phaser frequency. Phaser resistance is now " + Math.round(100 * this.phaserResistance) + "%.");
+                gameOutputAppend("WARNING: Borg shields adapt to the phaser frequency. Phaser resistance is now " + Math.round(100 * this.phaserResistance) + "%.");
             }
         }
     }
@@ -366,7 +366,7 @@ class Breen extends HostileEnemy
             if (target.isOperational() && Math.random() < Breen.StationDisruptionChance)
             {
                 target.disable(game);
-                gameOutputAppend("\nBreen energy dampener disrupts starbase support and nearby sensors!");
+                gameOutputAppend("\nDISRUPTION: Breen energy dampener disrupts starbase support and nearby sensors!");
             }
             return;
         }
@@ -380,15 +380,15 @@ class Breen extends HostileEnemy
             if (component == target.components.ShortRangeSensors)
             {
                 component.generateCorruptGrid();
-                gameOutputAppend("\nBreen energy dampener spike corrupts short-range sensors temporarily!");
+                gameOutputAppend("\nDISRUPTION: Breen energy dampener spike corrupts short-range sensors temporarily!");
             }
             else if (component == target.components.PhaserControl)
             {
-                gameOutputAppend("\nBreen disruption scrambles phaser targeting temporarily!");
+                gameOutputAppend("\nDISRUPTION: Breen energy wake scrambles phaser targeting temporarily!");
             }
             else
             {
-                gameOutputAppend("\nBreen disruption destabilizes photon torpedo targeting temporarily!");
+                gameOutputAppend("\nDISRUPTION: Breen energy wake destabilizes photon torpedo targeting temporarily!");
             }
         }
     }

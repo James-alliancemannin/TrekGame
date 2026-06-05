@@ -597,37 +597,134 @@ class TrekGame
 
     statusString()
     {
+        let condition = this.conditionStatusString();
+        let conditionClass = condition == "RED ALERT" ? "status-alert-red" : (condition == "YELLOW" ? "status-alert-yellow" : (condition == "DOCKED" ? "status-docked" : "status-alert-green"));
+
         return "<pre>" +
-        "\n\n\n" + 
+        "\n" +
+        "CONDITION             " + styledStatusToken(condition, conditionClass) + "\n" +
         "STARDATES REMAINING   " + (this.endStarDate - this.starDate) +"\n" +
-        "SECTOR (X,Y)          " + (this.enterprise.sectorY+1) +  ',' + (this.enterprise.sectorY+1) + '\n' + 
-        "SUBSECTOR (X,Y)       " + (this.enterprise.subsectorX+1) +  ',' + (this.enterprise.subsectorY+1) + "\n" + 
-        "PHOTON TORPEDOES      " + this.enterprise.torpedoes + '\n' + 
-        "SHIELD ENERGY         " + this.enterprise.shields + '\n' + 
-        "FREE ENERGY           " + this.enterprise.freeEnergy + '\n' + 
-        (this.primeUniverse ? "KLINGONS REMAINING    " : "TRAITORS REMAINING    ")
-        + this.totalHostileInstances() + '\n' + 
-        "STARBASES REMAINING   " + StarBase.Instances + '\n' +
-        "STATION OBJECTIVES    " + this.objectiveStatusString() + '\n' +
+        "SECTOR (X,Y)          " + (this.enterprise.sectorX+1) +  ',' + (this.enterprise.sectorY+1) + '\n' +
+        "SUBSECTOR (X,Y)       " + (this.enterprise.subsectorX+1) +  ',' + (this.enterprise.subsectorY+1) + "\n" +
+        "PHOTON TORPEDOES      " + this.enterprise.torpedoes + '\n' +
+        "SHIELD ENERGY         " + this.enterprise.shields + '\n' +
+        "FREE ENERGY           " + this.enterprise.freeEnergy + '\n' +
+        "HOSTILES REMAINING    " + this.hostileBreakdownString() + '\n' +
+        "STARBASES             " + this.starbaseStatusString() + '\n' +
+        "OBJECTIVES            " + this.objectiveStatusString() + '\n' +
+        this.systemEffectsStatusString() +
         "</pre>";
+    }
+
+    conditionStatusString()
+    {
+        if (this.enterprise.dockStarbase)
+        {
+            return "DOCKED";
+        }
+
+        let condition = this.enterprise.conditionString(this);
+        return condition == "RED" ? "RED ALERT" : condition;
+    }
+
+    hostileBreakdownString()
+    {
+        let parts = [];
+        for (var x in TrekGame.EnemyTypes)
+        {
+            let EnemyType = TrekGame.EnemyTypes[x];
+            let count = EnemyType.Instances || 0;
+            if (count > 0)
+            {
+                parts.push(EnemyType.displayName + " " + count);
+            }
+        }
+
+        return this.totalHostileInstances() + (parts.length ? " (" + parts.join(" / ") + ")" : "");
+    }
+
+    starbaseStatusString()
+    {
+        let operational = 0;
+        let disabled = 0;
+        for (var x in StarBase.starbaseList)
+        {
+            let starbase = StarBase.starbaseList[x];
+            starbase.ensureDamageFields();
+            if (starbase.isOperational())
+            {
+                operational++;
+            }
+            else
+            {
+                disabled++;
+            }
+        }
+
+        let status = operational + " operational";
+        if (disabled)
+        {
+            status += " / " + disabled + " disabled";
+        }
+        return status;
     }
 
     objectiveStatusString()
     {
         this.phase3Defaults();
-        let completed = 0;
-        let total = 2;
+        let objectiveStrings = [];
 
         if (this.distressBeacon.completed)
         {
-            completed++;
+            objectiveStrings.push("distress secured");
         }
-        if (this.stationDefenseObjective.completed)
+        else if (this.distressBeacon.discovered)
         {
-            completed++;
+            objectiveStrings.push("distress at " + (this.distressBeacon.sectorX + 1) + "," + (this.distressBeacon.sectorY + 1));
+        }
+        else
+        {
+            objectiveStrings.push("distress unknown");
         }
 
-        return completed + "/" + total;
+        if (this.stationDefenseObjective.completed)
+        {
+            objectiveStrings.push("station defended");
+        }
+        else if (this.stationDefenseObjective.active)
+        {
+            objectiveStrings.push("defend station " + (this.stationDefenseObjective.sectorX + 1) + "," + (this.stationDefenseObjective.sectorY + 1));
+        }
+        else
+        {
+            objectiveStrings.push("station secure");
+        }
+
+        return objectiveStrings.join(" | ");
+    }
+
+    systemEffectsStatusString()
+    {
+        let effects = [];
+        if (this.enterprise.components.ShortRangeSensors.disruptionActive())
+        {
+            effects.push("sensor corruption");
+        }
+        if (this.enterprise.components.PhaserControl.disruptionActive())
+        {
+            effects.push("phaser instability");
+        }
+        if (this.enterprise.components.PhotonTubes.disruptionActive())
+        {
+            effects.push("torpedo instability");
+        }
+
+        if (!effects.length)
+        {
+            return "";
+        }
+
+        return "SYSTEM EFFECTS        " + styledStatusToken(effects.join(" | "), "status-disruption") + "\n";
     }
 
     setInputPrompt(newprompt)
@@ -1102,11 +1199,11 @@ class TrekGame
 
         if (!adjacentHostiles.length)
         {
-            gameOutputAppend("\nOverload shockwave dissipates without striking another hostile.");
+            gameOutputAppend("\nTACTICAL: Overload shockwave dissipates without striking another hostile.");
             return;
         }
 
-        gameOutputAppend("\nOverload shockwave hits " + adjacentHostiles.length + " adjacent hostile" + (adjacentHostiles.length > 1 ? "s." : "."));
+        gameOutputAppend("\nTACTICAL: Overload shockwave hits " + adjacentHostiles.length + " adjacent hostile" + (adjacentHostiles.length > 1 ? "s." : "."));
         let targets = adjacentHostiles.slice();
         for (var x in targets)
         {
@@ -1235,11 +1332,11 @@ class TrekGame
         if (shieldBoost > 0)
         {
             this.enterprise.shields += shieldBoost;
-            gameOutputAppend("\nStarbase tactical support reinforces Enterprise shields by " + shieldBoost + " units.");
+            gameOutputAppend("\nSTATION: Starbase tactical support reinforces Enterprise shields by " + shieldBoost + " units. Shield harmonics stabilize under station control.");
         }
         else
         {
-            gameOutputAppend("\nStarbase tactical support is standing by; shields are already at station-safe limits.");
+            gameOutputAppend("\nSTATION: Starbase tactical support is standing by; shields are already at station-safe limits.");
         }
     }
 
@@ -1278,7 +1375,7 @@ class TrekGame
                     starbases[x].integrity = Math.max(starbases[x].integrity, StarBase.DisabledIntegrity + 20);
                     objective.completed = true;
                     objective.active = false;
-                    gameOutputAppend("\nObjective complete: starbase defended and emergency systems restored. Starfleet awards emergency resupply priority and 300 score points.");
+                    gameOutputAppend("\nOBJECTIVE COMPLETE: Starbase defended and emergency systems restored. Starfleet awards emergency resupply priority and 300 score points.");
                     starbases[x].resupplyEnterprise(this.enterprise);
                     return;
                 }
@@ -1300,7 +1397,7 @@ class TrekGame
         if (fromScan && dx <= 1 && dy <= 1 && !beacon.discovered)
         {
             beacon.discovered = true;
-            gameOutputAppend("\nObjective discovered: distress beacon detected in sector " + (beacon.sectorX + 1) + ", " + (beacon.sectorY + 1) + ". Visit the sector to recover survivors and sensor logs.");
+            gameOutputAppend("\nOBJECTIVE DISCOVERED: Distress beacon detected in sector " + (beacon.sectorX + 1) + ", " + (beacon.sectorY + 1) + ". Weak survivor telemetry is riding the carrier wave.");
         }
 
         if (this.enterprise.sectorX == beacon.sectorX && this.enterprise.sectorY == beacon.sectorY)
@@ -1310,7 +1407,7 @@ class TrekGame
             let torpedoesBefore = this.enterprise.torpedoes;
             this.enterprise.torpedoes = Math.min(Enterprise.StartTorpedoes, this.enterprise.torpedoes + 2);
             this.enterprise.freeEnergy = Math.min(Enterprise.StartEnergy - this.enterprise.shields, this.enterprise.freeEnergy + 150);
-            gameOutputAppend("\nObjective complete: distress beacon secured. Survivors provide sensor logs, 150 energy, " + (this.enterprise.torpedoes - torpedoesBefore) + " torpedoes, and 250 score points.");
+            gameOutputAppend("\nOBJECTIVE COMPLETE: Distress beacon secured. Survivors provide sensor logs, 150 energy, " + (this.enterprise.torpedoes - torpedoesBefore) + " torpedoes, and 250 score points.");
             this.enterprise.sensorHistory.updateSensorHistoryForEntityTypes
             (
                 this.hostileSensorTypes(),
@@ -1690,7 +1787,22 @@ class TrekGame
             
         }
 
-        return flags.join(" | ");
+        return flags.map(function(flag)
+        {
+            if (flag == "RED ALERT" || flag == "SHIELDS CRITICAL")
+            {
+                return styledStatusToken(flag, "status-alert-red");
+            }
+            if (flag == "DOCKED")
+            {
+                return styledStatusToken(flag, "status-docked");
+            }
+            if (flag == "SECTOR CLEAR")
+            {
+                return styledStatusToken(flag, "status-alert-green");
+            }
+            return flag;
+        }).join(" | ");
     }
 
     updateMapScreenGalaxy()
@@ -1706,7 +1818,7 @@ class TrekGame
             for (var x = 0; x < mapWidthSectors; x++)
             {
 
-                rval += "<a href=\"javascript:clickGridHandler(" + x + ","+ y +")\" style=\"color: rgb(0,255,0); text-decoration: none;\">";
+                rval += "<a class=\"map-click\" href=\"javascript:clickGridHandler(" + x + ","+ y +")\">";
 
                 let coordstr = "("+(x+1)+","+(y+1)+")";
                 rval += padStringToLength(coordstr, 7);
@@ -1720,12 +1832,13 @@ class TrekGame
 
             for (var x = 0; x < mapWidthSectors; x++)
             {
-                rval += "<a href=\"javascript:clickGridHandler("+x+","+y+")\" style=\"color: rgb(0,255,0); text-decoration: none;\">";
+                rval += "<a class=\"map-click\" href=\"javascript:clickGridHandler("+x+","+y+")\">";
 
                 let identifiers = '';
 
                 let sensorHistory = this.enterprise.sensorHistory.lookup(x,y);
 
+                let identifierClass = "map-object";
                 if (this.sensorHistoryHasHostileData(sensorHistory))
                 {
                     if ((this.enterprise.sectorX == x) && (this.enterprise.sectorY == y))
@@ -1739,15 +1852,35 @@ class TrekGame
                     {
                         identifiers += 'S';
                     }
+
+                    if (identifiers.indexOf('E') != -1)
+                    {
+                        identifierClass = "map-enterprise";
+                    }
+                    else if (identifiers.indexOf('B') != -1)
+                    {
+                        identifierClass = "map-borg";
+                    }
+                    else if (identifiers.indexOf('R') != -1)
+                    {
+                        identifierClass = "map-breen";
+                    }
+                    else if (identifiers.indexOf('K') != -1 || identifiers.indexOf('F') != -1)
+                    {
+                        identifierClass = "map-klingon";
+                    }
+                    else if (identifiers.indexOf('S') != -1)
+                    {
+                        identifierClass = "map-starbase";
+                    }
                 }
                 else
                 {
                     identifiers += '?';
+                    identifierClass = "map-unknown";
                 }
-                
-              
 
-                rval += padStringToLength(identifiers,7);
+                rval += styledMapToken(padStringToLength(identifiers,7), identifierClass, 7);
 
                 rval += "</a>";
 
@@ -1779,7 +1912,7 @@ class TrekGame
             let gameObject = sect.sectorEntities[gameObjectIndex];
             var objStr;
         
-            objStr = gameObject.toString().padStart(subsectorDisplayWidthChars, ' ');
+            objStr = styledMapToken(gameObject.toString(), mapCssClassForEntity(gameObject));
 
             sectorStringGrid.setValue(gameObject.subsectorX, gameObject.subsectorY, objStr);
         }
@@ -1791,7 +1924,7 @@ class TrekGame
             {   
                 if (this.enterprise.components.ShortRangeSensors.isSubsectorCorrupt1D(x))
                 {
-                    sectorStringGrid.setValue1D(x, '?'.padStart(subsectorDisplayWidthChars, ' '));
+                    sectorStringGrid.setValue1D(x, styledMapToken('?', 'map-unknown'));
                 }
             }
         }

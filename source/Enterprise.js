@@ -403,7 +403,7 @@ class Enterprise extends GameObject
 
         this.freeEnergy -= energy;
 
-        gameOutputAppend("\nFocused phaser strike locked on " + target.constructor.displayName + " vessel at subsector " + target.subsectorString() + ".");
+        gameOutputAppend("\nTACTICAL: Focused phaser strike locked on " + target.constructor.displayName + " vessel at subsector " + target.subsectorString() + ". Emitters holding a narrow firing solution.");
 
         let dist = this.distanceToObject(target);
         let damageAttenuated = energy / dist;
@@ -415,7 +415,7 @@ class Enterprise extends GameObject
         }
         else
         {
-            gameOutputAppend("Focused phaser strike misses!");
+            gameOutputAppend("WARNING: Focused phaser strike misses; targeting scanners report beam scatter.");
         }
 
         if (!game.currentSectorScanned)
@@ -438,7 +438,7 @@ class Enterprise extends GameObject
 
         if (this.freeEnergy >= energyCost)
         {
-            gameOutputAppend("\nFiring " + (overloaded ? "photon torpedo overload" : "torpedoes") + " towards subsector " + target.subsectorString());
+            gameOutputAppend("\n" + (overloaded ? "WARNING: Photon torpedo overload armed; shockwave safeties disengaged. Firing towards subsector " : "Firing torpedoes towards subsector ") + target.subsectorString());
             let torpedoIntersection = game.currentSector.intersectionTest(this.subsectorX, this.subsectorY, target.subsectorX, target.subsectorY, Infinity);
             this.torpedoes--;
             this.freeEnergy -= energyCost;

@@ -89,7 +89,7 @@ class Grid
                     lookupVal = padStringToLength('.', lookupVal.length);
                 }
 
-                let catstr = "<a href=\"javascript:clickGridHandler("+x+","+y+")\" style=\"color: rgb(0,255,0); text-decoration: none;\">" + lookupVal + "</a>";
+                let catstr = "<a class=\"map-click\" href=\"javascript:clickGridHandler("+x+","+y+")\">" + lookupVal + "</a>";
                 rval += catstr;
             }
             rval += '|';

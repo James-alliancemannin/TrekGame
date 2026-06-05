@@ -41,7 +41,7 @@ class StarBase extends GameObject
         enterprise.torpedoes = Enterprise.StartTorpedoes;
         enterprise.freeEnergy = Math.max(0, Enterprise.StartEnergy - enterprise.shields);
 
-        gameOutputAppend("\nStarbase resupply complete: restored " + torpedoesRestored + " photon torpedo" + (torpedoesRestored == 1 ? "" : "es") + " and " + (enterprise.freeEnergy - energyBefore) + " free energy.");
+        gameOutputAppend("\nSTATION: Starbase resupply complete: restored " + torpedoesRestored + " photon torpedo" + (torpedoesRestored == 1 ? "" : "es") + " and " + (enterprise.freeEnergy - energyBefore) + " free energy.");
     }
 
     destroyByHostiles(game)
@@ -58,7 +58,7 @@ class StarBase extends GameObject
         }
 
         game.checkStarbaseDock();
-        gameOutputAppend("\nWARNING: Starbase in sector " + this.sectorString() + " has been destroyed. Repair and resupply capacity is reduced.");
+        gameOutputAppend("\nWARNING: Starbase in sector " + this.sectorString() + " has been destroyed. Subspace channels fall silent; repair and resupply capacity is reduced.");
     }
 
     disable(game)
@@ -76,7 +76,7 @@ class StarBase extends GameObject
         }
 
         game.checkStarbaseDock();
-        gameOutputAppend("\nWARNING: Starbase in sector " + this.sectorString() + " is disabled. Docking support is offline until the sector is secured.");
+        gameOutputAppend("\nWARNING: Starbase in sector " + this.sectorString() + " is disabled. Emergency lights only; docking support is offline until the sector is secured.");
     }
 
     takeDamage(energy, game, fromHostile)
@@ -85,7 +85,7 @@ class StarBase extends GameObject
         if (fromHostile)
         {
             game.stationUnderAttack(this);
-            gameOutputAppend("\nHostile fire strikes starbase " + this.subsectorString() + " for " + energy + " units.");
+            gameOutputAppend("\nWARNING: Hostile fire strikes starbase " + this.subsectorString() + " for " + energy + " units; station shields flare across the sector.");
         }
         else
         {
@@ -116,7 +116,7 @@ class StarBase extends GameObject
                 this.disable(game);
             }
 
-            gameOutputAppend("Starbase status: shields " + Math.max(0, this.shields) + ", integrity " + Math.max(0, this.integrity) + ".");
+            gameOutputAppend("STATION: Starbase status: shields " + Math.max(0, this.shields) + ", integrity " + Math.max(0, this.integrity) + ".");
         }
     }
 

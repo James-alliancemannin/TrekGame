@@ -373,7 +373,7 @@ class Sector
         for (gameObjectIndex in this.sectorEntities)
         {
             let gameObject = this.sectorEntities[gameObjectIndex];
-            let objStr = gameObject.toString().padStart(subsectorDisplayWidthChars, ' ');
+            let objStr = styledMapToken(gameObject.toString(), mapCssClassForEntity(gameObject));
             sectorStringGrid.setValue(gameObject.subsectorX, gameObject.subsectorY, objStr);
         }
 
