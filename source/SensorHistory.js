@@ -31,6 +31,56 @@ class SensorHistory extends Grid
         }
     }
 
+    mapStringForEntityTypes(EntityTypes, gameobject = null)
+    {
+        let header = "   ";
+        for (let x = 0; x < mapWidthSectors; x++)
+        {
+            header += padStringToLength((""+(x+1)), 6);
+        }
+
+        let border = "------";
+        border = border.repeat(mapWidthSectors);
+        let rval = header + "\n   " + border + '\n';
+
+        for (let y = 0; y < this.height; y++)
+        {
+            rval += " " + (y+1) + " |";
+            for (let x = 0; x < this.width; x++)
+            {
+                let sectorDict = this.lookup(x, y);
+                var k = "";
+                var known = false;
+                var count = 0;
+
+                for (var entityTypeIndex in EntityTypes)
+                {
+                    let EntityType = EntityTypes[entityTypeIndex];
+                    if (EntityType in sectorDict)
+                    {
+                        known = true;
+                        count += sectorDict[EntityType];
+                    }
+                }
+
+                k += known ? count : "?";
+
+                if (gameobject)
+                {
+                    if (gameobject.sectorX == x && gameobject.sectorY == y)
+                    {
+                        // put an "E" on the map for the enterprise's current location
+                        k += 'E';
+                    }
+                }
+
+                rval += " " + padStringToLength(""+k, 3, ' ') + " |";
+             }
+             rval += "\n   " + border + "\n";
+         }
+         return rval;
+    }
+
     mapString(EntityType = Klingon, gameobject = null)
     {
         let header = "   ";

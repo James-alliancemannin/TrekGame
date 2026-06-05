@@ -183,7 +183,7 @@ class TrekGame
             let starbase = StarBase.starbaseList[x];
             sh.updateSensorHistoryForEntityTypes
             (
-                [Star, Klingon], 
+                this.hostileSensorTypes(), 
                 this.galaxyMap, 
                 starbase.sectorX-1, 
                 starbase.sectorY-1, 
@@ -193,20 +193,96 @@ class TrekGame
         }
     }
     
+    totalHostileInstances()
+    {
+        let rval = 0;
+        for (var x in TrekGame.EnemyTypes)
+        {
+            rval += TrekGame.EnemyTypes[x].Instances || 0;
+        }
+        return rval;
+    }
+
+    totalHostilesDestroyed()
+    {
+        let rval = 0;
+        for (var x in TrekGame.EnemyTypes)
+        {
+            rval += TrekGame.EnemyTypes[x].InstancesDestroyed || 0;
+        }
+        return rval;
+    }
+
+    sensorHistoryHostileCount(sensorHistory)
+    {
+        let rval = 0;
+        for (var x in TrekGame.EnemyTypes)
+        {
+            let EnemyType = TrekGame.EnemyTypes[x];
+            if (EnemyType in sensorHistory)
+            {
+                rval += sensorHistory[EnemyType];
+            }
+        }
+        return rval;
+    }
+
+    sensorHistoryHasHostileData(sensorHistory)
+    {
+        for (var x in TrekGame.EnemyTypes)
+        {
+            if (TrekGame.EnemyTypes[x] in sensorHistory)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    hostileSensorTypes()
+    {
+        return [Star].concat(TrekGame.EnemyTypes);
+    }
+
+    hostileSensorIdentifiers(sensorHistory)
+    {
+        let rval = "";
+
+        if (sensorHistory[Klingon] > 0)
+        {
+            rval += this.primeUniverse ? 'K' : 'F';
+        }
+        if (sensorHistory[Borg] > 0)
+        {
+            rval += 'B';
+        }
+        if (sensorHistory[Breen] > 0)
+        {
+            rval += 'R';
+        }
+
+        return rval;
+    }
+
     generateScore(gameWon)
     {
-        let baseScore = 1000 * (Klingon.InstancesDestroyed / (1 + this.starDate - this.starDateBegin));
+        let baseScore = 1000 * (this.totalHostilesDestroyed() / (1 + this.starDate - this.starDateBegin));
         let winMultiplier = 2.0;
 
         return gameWon ? Math.round(winMultiplier * baseScore) : Math.round(baseScore);
     }
 
+    destroyHostile(enemy)
+    {
+        gameOutputAppend(enemy.constructor.displayName + " vessel destroyed.");
+        this.currentSector.removeEntity(enemy);
+        enemy.constructor.Instances--;
+        enemy.constructor.InstancesDestroyed++;
+    }
+
     destroyKlingon(k)
     {
-        gameOutputAppend(this.primeUniverse ? "Klingon Fighter Destroyed" : "Enemy vessel destroyed.");
-        this.currentSector.removeEntity(k);
-        Klingon.Instances--;
-        Klingon.InstancesDestroyed++;
+        this.destroyHostile(k);
     }
 
     printStory()
@@ -221,7 +297,7 @@ class TrekGame
             "The Federation is in danger and you are the only ship in range.\n\n"
 
             storyString+= 
-            "Your mission is to hunt down and destroy the " + Klingon.Instances + " Klingon warships in the region.\n" + 
+            "Your mission is to hunt down and destroy the " + this.totalHostileInstances() + " Klingon warships in the region.\n" + 
             "You must complete your mission before stardate " + this.endStarDate + ", giving you " + (this.endStarDate - this.starDate) + 
             " stardates to succeed.";
 
@@ -251,7 +327,7 @@ class TrekGame
             storyString += "\n\nThis must be prevented at any cost.  ";
 
             storyString+= 
-            "\n\nYour mission is to hunt down and destroy the " + Klingon.Instances + " Federation ships in the region.\n" + 
+            "\n\nYour mission is to hunt down and destroy the " + this.totalHostileInstances() + " Federation ships in the region.\n" + 
             "You must complete your mission before stardate " + this.endStarDate + ", giving you " + (this.endStarDate - this.starDate) + 
             " stardates to succeed.";
 
@@ -273,7 +349,7 @@ class TrekGame
             gameOutputAppend(storyString);
         }
 
-        let enemyCount = this.currentSector.countEntitiesOfType(Klingon);
+        let enemyCount = this.currentSector.countHostileEntities();
         if (enemyCount)
         {
             gameOutputAppend("\n=============================\n");
@@ -319,9 +395,9 @@ class TrekGame
                     tutorialString += "\n\nMap key :\n";
 
                     tutorialString += this.primeUniverse ? 
-                    "<*> : ENTERPRISE\n*  : STAR\n+K+ : KLINGON\n>!< : STARBASE\n"
+                    "<*> : ENTERPRISE\n*  : STAR\n+K+ : KLINGON\n+B+ : BORG\n+R+ : BREEN\n>!< : STARBASE\n"
                     :
-                    "<*> : ENTERPRISE\n*  : STAR\n+F+ : FEDERATION SHIP\n>!< : STARBASE\n";
+                    "<*> : ENTERPRISE\n*  : STAR\n+F+ : FEDERATION SHIP\n+B+ : BORG\n+R+ : BREEN\n>!< : STARBASE\n";
 
                     gameOutputAppend(tutorialString);
 
@@ -470,7 +546,7 @@ class TrekGame
         "SHIELD ENERGY         " + this.enterprise.shields + '\n' + 
         "FREE ENERGY           " + this.enterprise.freeEnergy + '\n' + 
         (this.primeUniverse ? "KLINGONS REMAINING    " : "TRAITORS REMAINING    ")
-        + Klingon.Instances + '\n' + 
+        + this.totalHostileInstances() + '\n' + 
         "STARBASES REMAINING   " + StarBase.Instances + '\n' +
         "</pre>";
     }
@@ -654,13 +730,17 @@ class TrekGame
 
         let sensorHistory = this.enterprise.sensorHistory.lookup(sectorX, sectorY);
         
-        if (Klingon in sensorHistory)
+        if (this.sensorHistoryHasHostileData(sensorHistory))
         {
             gameOutputAppend("\nThe destination sector " + "(" + (1+sectorX) + ',' + (1+sectorY) +  ")" + " contains the following: ");
 
-            if (sensorHistory[Klingon] > 0)
+            for (var x in TrekGame.EnemyTypes)
             {
-                gameOutputAppend( (this.primeUniverse ? "Klingons : " : "Enemy vessels : ") + sensorHistory[Klingon]);
+                let EnemyType = TrekGame.EnemyTypes[x];
+                if (sensorHistory[EnemyType] > 0)
+                {
+                    gameOutputAppend(EnemyType.displayName + " vessels : " + sensorHistory[EnemyType]);
+                }
             }
 
             if (this.galaxyMap.lookup(sectorX, sectorY).countEntitiesOfType(StarBase) > 0)
@@ -771,7 +851,7 @@ class TrekGame
             return;
         }
 
-        let enemylist = this.currentSector.getEntitiesOfType(Klingon);
+        let enemylist = this.currentSector.getHostileEntities();
 
         if (!enemylist.length)
         {
@@ -853,7 +933,7 @@ class TrekGame
         var sh = this.enterprise.sensorHistory;
         sh.updateSensorHistoryForEntityTypes
         (
-            [Star, Klingon], 
+            this.hostileSensorTypes(), 
             this.galaxyMap, 
             this.enterprise.sectorX-1, 
             this.enterprise.sectorY-1, 
@@ -967,7 +1047,8 @@ class TrekGame
 
     combatStep()
     {
-        this.currentSector.klingonsFire(this.enterprise, this);
+        this.currentSector.hostileEnemiesMove(this);
+        this.currentSector.hostileEnemiesFire(this.enterprise, this);
         this.enterprise.components.ShortRangeSensors.generateCorruptGrid();
     }
 
@@ -1052,11 +1133,11 @@ class TrekGame
             
             if (this.primeUniverse)
             {
-                updateMapFooter("E: ENTERPRISE | K : KLINGONS | S : STARBASE | ? : UNEXPLORED");
+                updateMapFooter("E: ENTERPRISE | K/B/R : HOSTILES | S : STARBASE | ? : UNEXPLORED");
             }
             else
             {
-                updateMapFooter("E: ENTERPRISE | F : FEDERATION SPIES | S : STARBASE | ? : UNEXPLORED");
+                updateMapFooter("E: ENTERPRISE | F/B/R : HOSTILES | S : STARBASE | ? : UNEXPLORED");
             }
         }
         else
@@ -1145,7 +1226,7 @@ class TrekGame
     {
         this.enterprise.sensorHistory.updateSensorHistoryForEntityTypes
             (
-                [Star, Klingon], 
+                this.hostileSensorTypes(), 
                 this.galaxyMap, 
                 this.enterprise.sectorX, 
                 this.enterprise.sectorY, 
@@ -1261,7 +1342,7 @@ class TrekGame
 
             this.endGame();
         }
-        else if (!Klingon.Instances)
+        else if (!this.totalHostileInstances())
         {
             gameOutputAppend("\n\n============================YOU WIN!!============================\n");
             gameOutputAppend("You've managed to destroy all the enemy vessels, preventing the enemy from executing their plan!");
@@ -1298,12 +1379,12 @@ class TrekGame
             flags.push("DOCKED");
         }
 
-        if (this.currentSector.countEntitiesOfType(Klingon))
+        if (this.currentSector.countHostileEntities())
         {
             flags.push("RED ALERT");
 
             let estAvail = this.enterprise.components.ShieldControl.estimateAvailable();
-            let critical = this.enterprise.isShieldLevelCritical(this.currentSector.getEntitiesOfType(Klingon));
+            let critical = this.enterprise.isShieldLevelCritical(this.currentSector.getHostileEntities());
 
             if (estAvail && critical)
             {
@@ -1360,17 +1441,14 @@ class TrekGame
 
                 let sensorHistory = this.enterprise.sensorHistory.lookup(x,y);
 
-                if (Klingon in sensorHistory)
+                if (this.sensorHistoryHasHostileData(sensorHistory))
                 {
                     if ((this.enterprise.sectorX == x) && (this.enterprise.sectorY == y))
                     {
                         identifiers+= 'E';
                     }
 
-                    if (sensorHistory[Klingon] > 0)
-                    {
-                        identifiers += this.primeUniverse ? 'K' : 'F';
-                    }
+                    identifiers += this.hostileSensorIdentifiers(sensorHistory);
 
                     if (this.galaxyMap.lookup(x,y).countEntitiesOfType(StarBase) > 0)
                     {
@@ -1457,7 +1535,8 @@ function clickGridHandler(x,y)
     game.clickGridHandler(x,y);
 }
 
-TrekGame.EntityTypes = [Star, StarBase, Klingon, Planet];
+TrekGame.EnemyTypes = [Klingon, Borg, Breen];
+TrekGame.EntityTypes = [Star, StarBase, Klingon, Borg, Breen, Planet];
 TrekGame.BaseMissionTime = 25;
 TrekGame.MissionTimeSpread = 10;
 TrekGame.BombardCost = 3;
