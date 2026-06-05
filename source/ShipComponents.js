@@ -15,6 +15,28 @@ class ShipComponent
     {
         this.componentHealth -= Math.min(damage, this.componentHealth);
     }
+
+    disruptionActive()
+    {
+        return (this.disruptionTurns || 0) > 0;
+    }
+
+    disruptTemporarily(turns)
+    {
+        this.disruptionTurns = Math.max(this.disruptionTurns || 0, turns);
+    }
+
+    advanceDisruption()
+    {
+        if (this.disruptionTurns > 0)
+        {
+            this.disruptionTurns--;
+            if (this.disruptionTurns == 0)
+            {
+                gameOutputAppend("\n" + this.componentName + " disruption has cleared.");
+            }
+        }
+    }
 }
 
 // cap speed.
@@ -72,6 +94,11 @@ class ShortRangeSensorsComponent extends ShipComponent
         // lerp
         let chanceCorrupt = (1.0 - hnorm) * ShortRangeSensorsComponent.MinChanceCorrupt + hnorm * ShortRangeSensorsComponent.MaxChanceCorrupt;
 
+        if (this.disruptionActive())
+        {
+            chanceCorrupt = Math.min(ShortRangeSensorsComponent.DisruptedMaxChanceCorrupt, chanceCorrupt + ShortRangeSensorsComponent.DisruptionChanceCorruptBonus);
+        }
+
         return chanceCorrupt;
     }
 
@@ -109,6 +136,8 @@ class ShortRangeSensorsComponent extends ShipComponent
 ShortRangeSensorsComponent.FullyFunctionalHealth = .7;   // short range scan fully functional above this health
 ShortRangeSensorsComponent.MinChanceCorrupt = .1;        // For a particular subsector on the map, minimum chance it'll be corrupt when integrity is high
 ShortRangeSensorsComponent.MaxChanceCorrupt = .75;       // For a particular subsector on the map, maximum chance it'll be corrupt when integrity is low
+ShortRangeSensorsComponent.DisruptionChanceCorruptBonus = .35;
+ShortRangeSensorsComponent.DisruptedMaxChanceCorrupt = .9;
 
 
 class LongRangeSensorsComponent extends ShipComponent
@@ -150,7 +179,12 @@ class PhaserControlComponent extends ShipComponent
     phaserAccuracy()
     {
         let t = Math.min(this.componentHealth / PhaserControlComponent.FullyFunctionalHealth, 1.0);
-        return (1.0 - t) * PhaserControlComponent.MinAccuracy + t; //lerp
+        let accuracy = (1.0 - t) * PhaserControlComponent.MinAccuracy + t; //lerp
+        if (this.disruptionActive())
+        {
+            accuracy -= PhaserControlComponent.DisruptionAccuracyPenalty;
+        }
+        return Math.max(PhaserControlComponent.MinAccuracy, accuracy);
     }
 
     isHit()
@@ -168,6 +202,7 @@ class PhaserControlComponent extends ShipComponent
 PhaserControlComponent.DisabledThreshold = .5;
 PhaserControlComponent.FullyFunctionalHealth = .75;
 PhaserControlComponent.MinAccuracy = .5;
+PhaserControlComponent.DisruptionAccuracyPenalty = .25;
 
 
 class PhotonTubesComponent extends ShipComponent
@@ -208,7 +243,12 @@ class PhotonTubesComponent extends ShipComponent
     {
         let t = (this.componentHealth - PhotonTubesComponent.DisabledThreshold) / (PhotonTubesComponent.DamagedThreshold - PhotonTubesComponent.DisabledThreshold);
         t = Math.min(t, 1.0);
-        return (1.0 - t) * PhotonTubesComponent.MinAccuracy + t;
+        let accuracy = (1.0 - t) * PhotonTubesComponent.MinAccuracy + t;
+        if (this.disruptionActive())
+        {
+            accuracy -= PhotonTubesComponent.DisruptionAccuracyPenalty;
+        }
+        return Math.max(PhotonTubesComponent.MinAccuracy, accuracy);
     }
 
     isHit()
@@ -220,6 +260,7 @@ class PhotonTubesComponent extends ShipComponent
 PhotonTubesComponent.MinAccuracy = .25;         // 25% chance to hit minimum for torpedoes
 PhotonTubesComponent.DamagedThreshold = .5;     // 50% health = automatic targeting is down.
 PhotonTubesComponent.DisabledThreshold = .25;   // 25% health = can't fire torpedoes.
+PhotonTubesComponent.DisruptionAccuracyPenalty = .25;
 
 // make the shield scan thing conditional.  in both places.
 class ShieldControlComponent extends ShipComponent

@@ -944,13 +944,13 @@ class TrekGame
         this.advanceStardate(1.0);
     }
 
-    manualTorpedoHandler()
+    manualTorpedoHandler(overloaded=false)
     {
         let tfunc = function(trekgame, x, y){
             let gobj = new GameObject();
             gobj.subsectorX = x;
             gobj.subsectorY = y;
-            trekgame.torpedoHandler(gobj)
+            trekgame.torpedoHandler(gobj, overloaded)
             return true;
         };
 
@@ -1002,11 +1002,92 @@ class TrekGame
         this.awaitInput(menu.toString(), 1, function(inputline){return menu.chooseOption(inputline)});
     }
 
-    torpedoHandler(target)
+    torpedoHandler(target, overloaded=false)
     {
-        this.enterprise.fireTorpedo(this, target);
+        if (this.enterprise.fireTorpedo(this, target, overloaded))
+        {
+            this.combatStep();
+        }
 
-        this.combatStep();
+        return true;
+    }
+
+    applyTorpedoOverloadSplash(centerTarget, splashDamage)
+    {
+        let adjacentHostiles = this.currentSector.getHostileEntities().filter(function(enemy)
+        {
+            return enemy != centerTarget && enemy.isAdjacentTo(centerTarget);
+        });
+
+        if (!adjacentHostiles.length)
+        {
+            gameOutputAppend("\nOverload shockwave dissipates without striking another hostile.");
+            return;
+        }
+
+        gameOutputAppend("\nOverload shockwave hits " + adjacentHostiles.length + " adjacent hostile" + (adjacentHostiles.length > 1 ? "s." : "."));
+        let targets = adjacentHostiles.slice();
+        for (var x in targets)
+        {
+            if (this.currentSector.sectorEntities.indexOf(targets[x]) != -1)
+            {
+                targets[x].onTorpedoSplashDamage(splashDamage, this);
+            }
+        }
+    }
+
+    showFocusedPhaserTargetMenu()
+    {
+        let visibleTargets = this.enterprise.visiblePhaserTargets(this);
+        if (!visibleTargets.length)
+        {
+            gameOutputAppend("\nUnable to lock focused phasers onto targets because of sensor damage!");
+            return true;
+        }
+
+        let focusedMenu = new FocusedPhaserTargetMenu(this.currentSector.getHostileEntities(), this);
+        this.showMenu(focusedMenu);
+        return false;
+    }
+
+    focusedPhaserTargetHandler(target)
+    {
+        let freestring = "\nFREE ENERGY : " + this.enterprise.freeEnergy;
+        let accuracy = this.enterprise.components.PhaserControl.phaserAccuracy() * 100;
+        let chanceToHitString = "FOCUSED PHASER CHANCE TO HIT : " + accuracy + "%";
+        let trekgame = this;
+
+        this.awaitInput(chanceToHitString + "\nENTER ENERGY FOR FOCUSED PHASER STRIKE" + freestring, 4, function(inputline)
+        {
+            return trekgame.focusedPhaserHandler(inputline, target);
+        }, true);
+    }
+
+    focusedPhaserHandler(inputline, target)
+    {
+        let energy = parseInt(inputline);
+
+        if ((energy == null) || isNaN(energy) || energy < Enterprise.FocusedPhaserMinimumEnergy)
+        {
+            gameOutputAppend("Focused phaser strike requires at least " + Enterprise.FocusedPhaserMinimumEnergy + " energy.");
+            return false;
+        }
+
+        return this.fireFocusedPhaserEnergy(energy, target);
+    }
+
+    fireFocusedPhaserEnergy(energy, target)
+    {
+        if (energy > this.enterprise.freeEnergy)
+        {
+            gameOutputAppend("Not enough energy, captain!");
+            return false;
+        }
+
+        if (this.enterprise.fireFocusedPhaser(energy, target, this))
+        {
+            this.combatStep();
+        }
 
         return true;
     }
@@ -1047,6 +1128,7 @@ class TrekGame
 
     combatStep()
     {
+        this.enterprise.advanceTemporarySystemEffects();
         this.currentSector.hostileEnemiesMove(this);
         this.currentSector.hostileEnemiesFire(this.enterprise, this);
         this.enterprise.components.ShortRangeSensors.generateCorruptGrid();

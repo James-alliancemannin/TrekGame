@@ -5,6 +5,21 @@ class Enterprise extends GameObject
         return !this.components.ShortRangeSensors.isSubsectorCorrupt(entity.subsectorX, entity.subsectorY);
     }
 
+    visiblePhaserTargets(game)
+    {
+        let targets = game.currentSector.getEntitiesOfTypes(Enterprise.PhaserTargets);
+        let enterprise = this;
+        return targets.filter(function(item){return enterprise.canSeeEntity(item)});
+    }
+
+    advanceTemporarySystemEffects()
+    {
+        for (var key in this.components)
+        {
+            this.components[key].advanceDisruption();
+        }
+    }
+
     bombardPlanet(trekgame, planet)
     {
         console.assert(!planet.bombarded);
@@ -308,16 +323,9 @@ class Enterprise extends GameObject
     {
         console.log("fire phasers");
 
-        let targets = [];
+        let targets = game.currentSector.getEntitiesOfTypes(Enterprise.PhaserTargets);
 
-        var x;
-        for (x in Enterprise.PhaserTargets)
-        {
-            targets.push(...game.currentSector.getEntitiesOfType(Enterprise.PhaserTargets[x]));
-        }
-
-        let enterprise = this;
-        let targetsFiltered = targets.filter(function(item){return enterprise.canSeeEntity(item)});
+        let targetsFiltered = this.visiblePhaserTargets(game);
 
         console.assert(energy <= this.freeEnergy);
 
@@ -372,29 +380,90 @@ class Enterprise extends GameObject
         return true;
     }
 
-    fireTorpedo(game, target)
+    fireFocusedPhaser(energy, target, game)
     {
-        if (this.freeEnergy >= Enterprise.TorpedoEnergyCost)
+        console.log("fire focused phaser");
+
+        console.assert(energy <= this.freeEnergy);
+
+        if (Enterprise.PhaserTargets.indexOf(target.constructor) == -1 || game.currentSector.sectorEntities.indexOf(target) == -1)
         {
-            gameOutputAppend("\nFiring torpedoes towards subsector " + target.subsectorString());
+            gameOutputAppend("\nFocused phaser strike requires a hostile target in this sector.");
+            return false;
+        }
+
+        if (!this.canSeeEntity(target))
+        {
+            gameOutputAppend("\nUnable to maintain a focused phaser lock because of sensor damage!");
+            return false;
+        }
+
+        this.freeEnergy -= energy;
+
+        gameOutputAppend("\nFocused phaser strike locked on " + target.constructor.displayName + " vessel at subsector " + target.subsectorString() + ".");
+
+        let dist = this.distanceToObject(target);
+        let damageAttenuated = energy / dist;
+        let damageFinal = Math.floor(randomFloat(2.7, 3.7) * damageAttenuated);
+
+        if (this.components.PhaserControl.isHit())
+        {
+            target.onPhaserHit(damageFinal, game);
+        }
+        else
+        {
+            gameOutputAppend("Focused phaser strike misses!");
+        }
+
+        if (!game.currentSectorScanned)
+        {
+            gameOutputAppend("\nRun combat sensor scan to see enemy shield levels.");
+        }
+
+        return true;
+    }
+
+    fireTorpedo(game, target, overloaded=false)
+    {
+        let energyCost = overloaded ? Enterprise.TorpedoEnergyCost + Enterprise.TorpedoOverloadEnergyCost : Enterprise.TorpedoEnergyCost;
+
+        if (this.torpedoes <= 0)
+        {
+            gameOutputAppend("\nWe're out of torpedoes, captain!");
+            return false;
+        }
+
+        if (this.freeEnergy >= energyCost)
+        {
+            gameOutputAppend("\nFiring " + (overloaded ? "photon torpedo overload" : "torpedoes") + " towards subsector " + target.subsectorString());
             let torpedoIntersection = game.currentSector.intersectionTest(this.subsectorX, this.subsectorY, target.subsectorX, target.subsectorY, Infinity);
             this.torpedoes--;
-            this.freeEnergy -= Enterprise.TorpedoEnergyCost;
+            this.freeEnergy -= energyCost;
             
             if (this.components.PhotonTubes.isHit() && torpedoIntersection.intersects != null)
             {
-               torpedoIntersection.intersects.onTorpedoHit(game);
+               let hitObject = torpedoIntersection.intersects;
+               hitObject.onTorpedoHit(game);
+
+               if (overloaded && Enterprise.PhaserTargets.indexOf(hitObject.constructor) != -1)
+               {
+                   game.applyTorpedoOverloadSplash(hitObject, Enterprise.TorpedoOverloadSplashDamage);
+               }
             }
             else
             {
                 gameOutputAppend("\nThe torpedo missed!");
             }
+
+            return true;
         }
         else
         {
             //not enough energy
-            gameOutputAppend("\nNot enough energy to fire torpedoes!");
+            gameOutputAppend("\nNot enough energy to fire " + (overloaded ? "an overloaded torpedo" : "torpedoes") + "!");
         }
+
+        return false;
     }
 
     lrsStringEntityTypes(galaxyMap, entityTypes)
@@ -588,6 +657,9 @@ Enterprise.StartTorpedoes = 10;
 Enterprise.StartEnergy = 3000;
 Enterprise.StartShields = 0;
 Enterprise.TorpedoEnergyCost = 10;
+Enterprise.TorpedoOverloadEnergyCost = 40;
+Enterprise.TorpedoOverloadSplashDamage = 120;
+Enterprise.FocusedPhaserMinimumEnergy = 150;
 Enterprise.EnemyScanCost = 10;
 Enterprise.PhaserTargets = [Klingon, Borg, Breen];           // future extension : this list could be dynamic based on evolving gameplay alliances, etc :) 
 Enterprise.EnergyCostPerSubsector = 1.0;        // Warp cost per subsector moved
