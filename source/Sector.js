@@ -198,30 +198,90 @@ class Sector
         return this.sectorEntities.filter(function(item){return item.constructor == classtype});
     }
 
+    getEntitiesOfTypes(classTypes)
+    {
+        return this.sectorEntities.filter(function(item){return classTypes.indexOf(item.constructor) != -1});
+    }
+
+    getHostileEntities()
+    {
+        return this.getEntitiesOfTypes(TrekGame.EnemyTypes);
+    }
+
+    countHostileEntities()
+    {
+        return this.getHostileEntities().length;
+    }
+
+    isInBounds(x, y)
+    {
+        return x >= 0 && y >= 0 && x < this.width && y < this.height;
+    }
+
+    canEntityMoveTo(entity, x, y)
+    {
+        x = Math.floor(x);
+        y = Math.floor(y);
+
+        if (!this.isInBounds(x, y))
+        {
+            return false;
+        }
+
+        let entityAtDestination = this.entityAtLocation(x, y);
+        return entityAtDestination == null || entityAtDestination == entity;
+    }
+
+    moveEntity(entity, x, y)
+    {
+        if (!this.canEntityMoveTo(entity, x, y))
+        {
+            return false;
+        }
+
+        entity.subsectorX = Math.floor(x);
+        entity.subsectorY = Math.floor(y);
+        return true;
+    }
+
     getAdjacentEntitiesOfType(adjacentToObj, classtype)
     {
         let sblist = this.getEntitiesOfType(classtype);
         return sblist.filter(function(sb){return sb.isAdjacentTo(adjacentToObj)});
     }
 
+    hostileEnemiesMove(game)
+    {
+        let enemies = this.getHostileEntities().slice();
+
+        for (var x in enemies)
+        {
+            enemies[x].moveEnemy(game);
+        }
+    }
+
+    hostileEnemiesFire(target, game)
+    {
+        let enemyList = this.getHostileEntities();
+
+        if (enemyList.length > 1)
+        {
+            gameOutputAppend("\nThe hostile vessels fire their weapons.");
+        }
+        else if (enemyList.length)
+        {
+            gameOutputAppend("\nThe hostile vessel fires its weapons.");
+        }
+
+        for (var x in enemyList)
+        {
+            enemyList[x].firePhasers(target, game);
+        }
+    }
+
     klingonsFire(target, game)
     {
-        let klist = this.getEntitiesOfType(Klingon);
-
-        let descStr = game.primeUniverse ? "Klingon" : "Federation";
-        if (klist.length > 1)
-        {
-            gameOutputAppend("\nThe " + descStr + " vessels fire their phasers.");
-        }
-        else if (klist.length)
-        {
-            gameOutputAppend("\nThe " + descStr + " vessel fires its phasers.");
-        }
-
-        for (var x in klist)
-        {
-            klist[x].firePhasers(target, game);
-        }
+        this.hostileEnemiesFire(target, game);
     }
 
     createEntities(entityTypes)
@@ -285,7 +345,7 @@ class Sector
             for (entityIdx in this.sectorEntities)
             {
                 let entity = this.sectorEntities[entityIdx];
-                if (entity.subsectorX == randomX && entity.ssectorY == randomY)
+                if (entity.subsectorX == randomX && entity.subsectorY == randomY)
                 {
                     emptyFound = false;
                     break;

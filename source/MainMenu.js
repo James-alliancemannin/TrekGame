@@ -153,9 +153,9 @@ class MainMenu extends Menu
                     let totalEnergy = (trekgame.enterprise.freeEnergy + trekgame.enterprise.shields);
                     
                     let suggestedStr = "";
-                    if (trekgame.currentSector.countEntitiesOfType(Klingon))
+                    if (trekgame.currentSector.countHostileEntities())
                     {
-                        let klingonList = trekgame.currentSector.getEntitiesOfType(Klingon);
+                        let klingonList = trekgame.currentSector.getHostileEntities();
 
                         let suggestedShieldLevel = trekgame.enterprise.suggestedMinShieldLevel(klingonList);
 
@@ -270,7 +270,7 @@ class MainMenu extends Menu
                         gameOutputAppend("\nPhasers too damaged to fire!");
                         return true;
                     }
-                    if (trekgame.currentSector.countEntitiesOfType(Klingon))
+                    if (trekgame.currentSector.countHostileEntities())
                     {
                         if (trekgame.typingFree)
                         {
@@ -309,7 +309,7 @@ class MainMenu extends Menu
                             // automatic targeting enabled. push a menu of targets.
                             console.log("auto targeting path");
 
-                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getEntitiesOfType(Klingon), trekgame);
+                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileEntities(), trekgame);
 
                             trekgame.awaitInput(torpMenu.toString(), 1, function(inputline){return torpMenu.chooseOption(inputline);});
                         }

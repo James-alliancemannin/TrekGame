@@ -113,7 +113,7 @@ class ShipComputerMenu extends Menu
                     }
 
                     gameOutputAppend("\nSENSOR RECORDS OF ENEMIES IN EACH SECTOR");
-                    gameOutputAppend(trekGame.enterprise.sensorHistory.mapString(Klingon, trekGame.enterprise));
+                    gameOutputAppend(trekGame.enterprise.sensorHistory.mapStringForEntityTypes(TrekGame.EnemyTypes, trekGame.enterprise));
                     return true;
                 }
             ),

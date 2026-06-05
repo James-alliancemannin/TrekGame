@@ -15,12 +15,12 @@ class Enterprise extends GameObject
         }
 
         var klingonsMoved = 0;
-        let klingonsToMove = Math.min(Math.min(Klingon.Instances, TrekGame.BombardReinforcementSize), trekgame.currentSector.emptySquares());
+        let klingonsToMove = Math.min(Math.min(trekgame.totalHostileInstances(), TrekGame.BombardReinforcementSize), trekgame.currentSector.emptySquares());
 
         for (var q in trekgame.galaxyMap.contents)
         {
             let sector = trekgame.galaxyMap.lookup1D(q);
-            let sectorKlingons = sector.getEntitiesOfType(Klingon);
+            let sectorKlingons = sector.getHostileEntities();
 
             if (sector == trekgame.currentSector)
             {
@@ -39,10 +39,13 @@ class Enterprise extends GameObject
                 // remove the enemy from the sensor history count -- 
                 // i guess the enterprise could somehow scan where the enemy is warping in from?
                 // from a gameplay standpoint i want only correct counts or question marks - not wrong info
-                if (Klingon in shSector)
+                for (var enemyTypeIndex in TrekGame.EnemyTypes)
                 {
-                    shSector[Klingon]--;
-                    //console.log("removing klingon sensor history");
+                    let EnemyType = TrekGame.EnemyTypes[enemyTypeIndex];
+                    if (k.constructor == EnemyType && EnemyType in shSector)
+                    {
+                        shSector[EnemyType]--;
+                    }
                 }
             }
         }
@@ -246,7 +249,7 @@ class Enterprise extends GameObject
 
     conditionString(game)
     {
-        if (game.currentSector.countEntitiesOfType(Klingon))
+        if (game.currentSector.countHostileEntities())
         {
             return "RED";
         }
@@ -394,6 +397,48 @@ class Enterprise extends GameObject
         }
     }
 
+    lrsStringEntityTypes(galaxyMap, entityTypes)
+    {
+        let header = "   ";
+        for (let x = this.sectorX - 1; x <= this.sectorX + 1; x++)
+        {
+            header += padStringToLength((""+(x+1)), 6);
+        }
+
+        let border = "-------------------";
+        let rval = header + "\n   " + border + '\n';
+
+        for (let y = this.sectorY - 1; y <= this.sectorY + 1; y++)
+        {
+            rval += " " + (y+1) + " |";
+            for (let x = this.sectorX - 1; x <= this.sectorX + 1; x++)
+            {
+                let sector = galaxyMap.lookup(x, y);
+                if (sector)
+                {
+                    let k = 0;
+                    for (var entityTypeIndex in entityTypes)
+                    {
+                        k += sector.countEntitiesOfType(entityTypes[entityTypeIndex]);
+                    }
+
+                    if (x == this.sectorX && y == this.sectorY)
+                    {
+                        k = "" + k + "E";
+                    }
+
+                    rval += " " + padStringToLength(""+k, 3) + " |";
+                }
+                else
+                {
+                    rval += " *** |";
+                }
+            }
+            rval += "\n   " + border + "\n";
+        }
+        return rval;
+    }
+
     lrsStringEntityType(galaxyMap, entityType)
     {
         let header = "   ";
@@ -436,11 +481,11 @@ class Enterprise extends GameObject
     lrsString(trekGame, galaxyMap)
     {
        
-        let klingonLRS = this.lrsStringEntityType(galaxyMap, Klingon);
+        let klingonLRS = this.lrsStringEntityTypes(galaxyMap, TrekGame.EnemyTypes);
         let starLRS = this.lrsStringEntityType(galaxyMap, Star);
         //let starbaseLRS = this.lrsStringEntityType(galaxyMap, StarBase);
 
-        let rval = trekGame.primeUniverse ? "\t KLINGONS" : "\t ENEMIES";
+        let rval = "\t HOSTILES";
         
         //rval += "\t\t  STARS\t\t\tSTARBASES\n";
         rval += "\t\t  STARS\n";
@@ -544,7 +589,7 @@ Enterprise.StartEnergy = 3000;
 Enterprise.StartShields = 0;
 Enterprise.TorpedoEnergyCost = 10;
 Enterprise.EnemyScanCost = 10;
-Enterprise.PhaserTargets = [Klingon];           // future extension : this list could be dynamic based on evolving gameplay alliances, etc :) 
+Enterprise.PhaserTargets = [Klingon, Borg, Breen];           // future extension : this list could be dynamic based on evolving gameplay alliances, etc :) 
 Enterprise.EnergyCostPerSubsector = 1.0;        // Warp cost per subsector moved
 Enterprise.EnergyCostPerSector = 10.0;          // Warp cost per sector moved
 Enterprise.DamagePassthroughRatio = .25;        // if damage is 25% of shields or more, pass damage through to components
