@@ -15,7 +15,7 @@ class MainMenu extends Menu
                 "DOCK WITH STARBASE",
                 function()
                 {
-                    let adjacentStarbases = trekgame.currentSector.getAdjacentEntitiesOfType(trekgame.enterprise, StarBase);
+                    let adjacentStarbases = trekgame.currentSector.getAdjacentEntitiesOfType(trekgame.enterprise, StarBase).filter(function(starbase){return starbase.isOperational();});
                     console.assert(adjacentStarbases.length);
 
                     let sb = adjacentStarbases[0];

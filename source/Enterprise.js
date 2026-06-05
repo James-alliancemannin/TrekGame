@@ -146,12 +146,17 @@ class Enterprise extends GameObject
 
         console.log("Enterprise has " + damagedComponents.length + " damaged components");
 
-        if (!damagedComponents.length)return;
+        if (!damagedComponents.length)
+        {
+            gameOutputAppend("\nStation repair crews report no damaged components require work.");
+            return null;
+        }
 
         let componentToRepair = damagedComponents[randomInt(0, damagedComponents.length-1)];
         componentToRepair.componentHealth = 1.0;
 
-        gameOutputAppend("\n"+componentToRepair.componentName + " has been fully repaired!");
+        gameOutputAppend("\nStation repair crews fully repaired " + componentToRepair.componentName + ".");
+        return componentToRepair;
     }
 
     undock(starbase)
@@ -164,12 +169,10 @@ class Enterprise extends GameObject
         console.assert(starbase);
         console.log("dock with starbase");
 
-        this.torpedoes = Enterprise.StartTorpedoes;
-        this.freeEnergy = Enterprise.StartEnergy - this.shields;
         this.dockStarbase = starbase;
 
-        gameOutputAppend("\nDocked with starbase.  Torpedoes and energy replenished.  The starbase's shields protect the Enterprise.");
-
+        gameOutputAppend("\nDocked with operational starbase. The starbase's shields protect the Enterprise while docked.");
+        starbase.resupplyEnterprise(this);
         this.repairRandomComponent();
     }
 
