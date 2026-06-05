@@ -22,6 +22,7 @@ class TrekGame
             gamerval.createMenus();
 
             gamerval.mapScreenGalaxy = false;
+            gamerval.phase3Defaults();
 
             gamerval.checkStarbaseDock();
             gamerval.checkPlanetBombard();
@@ -110,6 +111,7 @@ class TrekGame
         this.endStarDate = this.starDate + TrekGame.BaseMissionTime + randomInt(0, TrekGame.MissionTimeSpread);
 
         this.currentSectorScanned = false;
+        this.phase3Defaults();
 
         this.createMenus();
         this.setInputPrompt(this.mainMenu.toString());
@@ -119,6 +121,19 @@ class TrekGame
         this.updateGame();
 
         autosave(this);
+    }
+
+    phase3Defaults()
+    {
+        if (!this.stationDefenseObjective)
+        {
+            this.stationDefenseObjective = {active:false, completed:false, sectorX:null, sectorY:null};
+        }
+
+        if (!this.distressBeacon)
+        {
+            this.distressBeacon = {sectorX: randomInt(0, mapWidthSectors - 1), sectorY: randomInt(0, mapHeightSectors - 1), discovered:false, completed:false};
+        }
     }
 
     showDockMenu(sb)
@@ -132,11 +147,19 @@ class TrekGame
             (
                 "1",
                 ") ", 
-                "STAY DOCKED (1 STARDATE, REPAIRS A COMPONENT)",
+                "STAY DOCKED (1 STARDATE, STATION REPAIR)",
                 function()
                 {
                     trekgame.advanceStardate(1.0);
-                    trekgame.enterprise.repairRandomComponent();
+                    if (sb.isOperational())
+                    {
+                        trekgame.enterprise.repairRandomComponent();
+                        gameOutputAppend("Starbase repair crews can complete one component repair per stardate.");
+                    }
+                    else
+                    {
+                        gameOutputAppend("\nStarbase repair facilities are disabled.");
+                    }
                     return false;
                 }
             ),
@@ -157,7 +180,27 @@ class TrekGame
             ),
             new MenuOption
             (
-                "3", ") ", "DAMAGE REPORT", 
+                "3",
+                ") ",
+                "STATION REPAIR (1 STARDATE)",
+                function()
+                {
+                    trekgame.advanceStardate(1.0);
+                    if (sb.isOperational())
+                    {
+                        trekgame.enterprise.repairRandomComponent();
+                        gameOutputAppend("Starbase repair crews can complete one component repair per stardate.");
+                    }
+                    else
+                    {
+                        gameOutputAppend("\nStarbase repair facilities are disabled.");
+                    }
+                    return false;
+                }
+            ),
+            new MenuOption
+            (
+                "4", ") ", "DAMAGE REPORT",
                 function()
                 {
                     trekgame.enterprise.damageReport();
@@ -181,6 +224,11 @@ class TrekGame
         for (var x in StarBase.starbaseList)
         {
             let starbase = StarBase.starbaseList[x];
+            if (!starbase.isOperational())
+            {
+                continue;
+            }
+
             sh.updateSensorHistoryForEntityTypes
             (
                 this.hostileSensorTypes(), 
@@ -267,9 +315,20 @@ class TrekGame
     generateScore(gameWon)
     {
         let baseScore = 1000 * (this.totalHostilesDestroyed() / (1 + this.starDate - this.starDateBegin));
+        let objectiveBonus = 0;
+
+        if (this.distressBeacon && this.distressBeacon.completed)
+        {
+            objectiveBonus += 250;
+        }
+        if (this.stationDefenseObjective && this.stationDefenseObjective.completed)
+        {
+            objectiveBonus += 300;
+        }
+
         let winMultiplier = 2.0;
 
-        return gameWon ? Math.round(winMultiplier * baseScore) : Math.round(baseScore);
+        return (gameWon ? Math.round(winMultiplier * baseScore) : Math.round(baseScore)) + objectiveBonus;
     }
 
     destroyHostile(enemy)
@@ -278,6 +337,7 @@ class TrekGame
         this.currentSector.removeEntity(enemy);
         enemy.constructor.Instances--;
         enemy.constructor.InstancesDestroyed++;
+        this.checkStationDefenseCompleted();
     }
 
     destroyKlingon(k)
@@ -548,7 +608,26 @@ class TrekGame
         (this.primeUniverse ? "KLINGONS REMAINING    " : "TRAITORS REMAINING    ")
         + this.totalHostileInstances() + '\n' + 
         "STARBASES REMAINING   " + StarBase.Instances + '\n' +
+        "STATION OBJECTIVES    " + this.objectiveStatusString() + '\n' +
         "</pre>";
+    }
+
+    objectiveStatusString()
+    {
+        this.phase3Defaults();
+        let completed = 0;
+        let total = 2;
+
+        if (this.distressBeacon.completed)
+        {
+            completed++;
+        }
+        if (this.stationDefenseObjective.completed)
+        {
+            completed++;
+        }
+
+        return completed + "/" + total;
     }
 
     setInputPrompt(newprompt)
@@ -863,6 +942,7 @@ class TrekGame
         this.currentSectorScanned = true;
 
         gameOutputAppend("\nENEMY SHIP SCANNER REPORTS");
+        this.checkDistressBeacon(true);
 
         let e_max_of_min = 0;
         let e_max_of_max = 0;
@@ -941,6 +1021,7 @@ class TrekGame
             this.enterprise.sectorY+1
         );
 
+        this.checkDistressBeacon(true);
         this.advanceStardate(1.0);
     }
 
@@ -1126,9 +1207,129 @@ class TrekGame
         }
     }
 
+    operationalStationNearEnterprise()
+    {
+        let starbases = this.currentSector.getEntitiesOfType(StarBase);
+        for (var x in starbases)
+        {
+            let starbase = starbases[x];
+            if (starbase.isOperational() && (this.enterprise.dockStarbase == starbase || this.enterprise.isAdjacentTo(starbase)))
+            {
+                return starbase;
+            }
+        }
+
+        return null;
+    }
+
+    applyStationSupport()
+    {
+        let station = this.operationalStationNearEnterprise();
+        if (!station)
+        {
+            return;
+        }
+
+        let maxShields = this.enterprise.components.ShieldControl.maxShields();
+        let shieldBoost = Math.min(StarBase.SupportShieldBoost, Math.max(0, maxShields - this.enterprise.shields));
+        if (shieldBoost > 0)
+        {
+            this.enterprise.shields += shieldBoost;
+            gameOutputAppend("\nStarbase tactical support reinforces Enterprise shields by " + shieldBoost + " units.");
+        }
+        else
+        {
+            gameOutputAppend("\nStarbase tactical support is standing by; shields are already at station-safe limits.");
+        }
+    }
+
+    stationUnderAttack(starbase)
+    {
+        this.phase3Defaults();
+
+        if (!this.stationDefenseObjective.active && !this.stationDefenseObjective.completed)
+        {
+            this.stationDefenseObjective.active = true;
+            this.stationDefenseObjective.sectorX = starbase.sectorX;
+            this.stationDefenseObjective.sectorY = starbase.sectorY;
+            gameOutputAppend("\nALERT: Starbase under attack in sector " + starbase.sectorString() + ". Defend the station for a command bonus.");
+        }
+    }
+
+    checkStationDefenseCompleted()
+    {
+        this.phase3Defaults();
+        let objective = this.stationDefenseObjective;
+        if (!objective.active || objective.completed)
+        {
+            return;
+        }
+
+        if (this.enterprise.sectorX == objective.sectorX && this.enterprise.sectorY == objective.sectorY && !this.currentSector.countHostileEntities())
+        {
+            let starbases = this.currentSector.getEntitiesOfType(StarBase);
+            for (var x in starbases)
+            {
+                starbases[x].ensureDamageFields();
+                if (starbases[x].integrity > 0)
+                {
+                    starbases[x].disabled = false;
+                    starbases[x].shields = Math.max(starbases[x].shields, Math.floor(StarBase.StartShields / 2));
+                    starbases[x].integrity = Math.max(starbases[x].integrity, StarBase.DisabledIntegrity + 20);
+                    objective.completed = true;
+                    objective.active = false;
+                    gameOutputAppend("\nObjective complete: starbase defended and emergency systems restored. Starfleet awards emergency resupply priority and 300 score points.");
+                    starbases[x].resupplyEnterprise(this.enterprise);
+                    return;
+                }
+            }
+        }
+    }
+
+    checkDistressBeacon(fromScan)
+    {
+        this.phase3Defaults();
+        let beacon = this.distressBeacon;
+        if (beacon.completed)
+        {
+            return;
+        }
+
+        let dx = Math.abs(this.enterprise.sectorX - beacon.sectorX);
+        let dy = Math.abs(this.enterprise.sectorY - beacon.sectorY);
+        if (fromScan && dx <= 1 && dy <= 1 && !beacon.discovered)
+        {
+            beacon.discovered = true;
+            gameOutputAppend("\nObjective discovered: distress beacon detected in sector " + (beacon.sectorX + 1) + ", " + (beacon.sectorY + 1) + ". Visit the sector to recover survivors and sensor logs.");
+        }
+
+        if (this.enterprise.sectorX == beacon.sectorX && this.enterprise.sectorY == beacon.sectorY)
+        {
+            beacon.discovered = true;
+            beacon.completed = true;
+            let torpedoesBefore = this.enterprise.torpedoes;
+            this.enterprise.torpedoes = Math.min(Enterprise.StartTorpedoes, this.enterprise.torpedoes + 2);
+            this.enterprise.freeEnergy = Math.min(Enterprise.StartEnergy - this.enterprise.shields, this.enterprise.freeEnergy + 150);
+            gameOutputAppend("\nObjective complete: distress beacon secured. Survivors provide sensor logs, 150 energy, " + (this.enterprise.torpedoes - torpedoesBefore) + " torpedoes, and 250 score points.");
+            this.enterprise.sensorHistory.updateSensorHistoryForEntityTypes
+            (
+                this.hostileSensorTypes(),
+                this.galaxyMap,
+                this.enterprise.sectorX-1,
+                this.enterprise.sectorY-1,
+                this.enterprise.sectorX+1,
+                this.enterprise.sectorY+1
+            );
+        }
+    }
+
     combatStep()
     {
         this.enterprise.advanceTemporarySystemEffects();
+        if (this.currentSector.countHostileEntities())
+        {
+            this.applyStationSupport();
+        }
         this.currentSector.hostileEnemiesMove(this);
         this.currentSector.hostileEnemiesFire(this.enterprise, this);
         this.enterprise.components.ShortRangeSensors.generateCorruptGrid();
@@ -1249,7 +1450,7 @@ class TrekGame
         {
             var sb = starbases[x];
 
-            if (this.enterprise.isAdjacentTo(sb))
+            if (sb.isOperational() && this.enterprise.isAdjacentTo(sb))
             {
                 console.log("adjacent");
                 this.mainMenu.dockOption.enabled = true;
@@ -1300,6 +1501,8 @@ class TrekGame
         this.enterpriseShortRangeScan();
         this.checkStarbaseDock();
         this.checkPlanetBombard();
+        this.checkDistressBeacon(false);
+        this.checkStationDefenseCompleted();
 
         this.checkEndConditions();
     }

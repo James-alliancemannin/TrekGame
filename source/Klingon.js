@@ -106,6 +106,53 @@ class HostileEnemy extends GameObject
         return true;
     }
 
+
+    closestOperationalStarbase(game)
+    {
+        let starbases = game.currentSector.getEntitiesOfType(StarBase).filter(function(starbase){return starbase.isOperational();});
+        if (!starbases.length)
+        {
+            return null;
+        }
+
+        let hostile = this;
+        starbases.sort(function(a, b){return hostile.distanceToObject(a) - hostile.distanceToObject(b);});
+        return starbases[0];
+    }
+
+    stationMovementCandidates(game)
+    {
+        let station = this.closestOperationalStarbase(game);
+        if (!station)
+        {
+            return [];
+        }
+
+        let xdir = Math.sign(station.subsectorX - this.subsectorX);
+        let ydir = Math.sign(station.subsectorY - this.subsectorY);
+        let candidates = [];
+
+        if (xdir != 0 || ydir != 0)
+        {
+            candidates.push({x : this.subsectorX + xdir, y : this.subsectorY + ydir});
+        }
+        if (xdir != 0)
+        {
+            candidates.push({x : this.subsectorX + xdir, y : this.subsectorY});
+        }
+        if (ydir != 0)
+        {
+            candidates.push({x : this.subsectorX, y : this.subsectorY + ydir});
+        }
+
+        return candidates;
+    }
+
+    selectTarget(game)
+    {
+        return game.enterprise;
+    }
+
     movementCandidates(game)
     {
         return this.towardEnterpriseMovementCandidates(game);
@@ -169,10 +216,21 @@ class Klingon extends HostileEnemy
         return game.primeUniverse ? "klingon fighter" : "enemy ship";
     }
 
+    selectTarget(game)
+    {
+        let station = this.closestOperationalStarbase(game);
+        if (station && this.distanceToObject(station) <= Klingon.StationAttackRange && Math.random() < Klingon.StationAttackChance)
+        {
+            return station;
+        }
+
+        return game.enterprise;
+    }
+
     firePhasers(target, game)
     {
         let dist = this.distanceToObject(target);
-        if (dist <= Klingon.AggressiveStrikeRange && Math.random() < Klingon.AggressiveStrikeChance)
+        if (target.constructor == Enterprise && dist <= Klingon.AggressiveStrikeRange && Math.random() < Klingon.AggressiveStrikeChance)
         {
             let phaserDamage = Math.round(this.phaserDamageBase(dist) * Klingon.AggressiveStrikeMultiplier * randomInt(Klingon.MinPhaserMultiplier, Klingon.MaxPhaserMultiplier));
             let sstr = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
@@ -241,6 +299,31 @@ class Borg extends HostileEnemy
         }
     }
 
+    selectTarget(game)
+    {
+        let station = this.closestOperationalStarbase(game);
+        if (station && Math.random() < Borg.StationTargetChance)
+        {
+            return station;
+        }
+
+        return game.enterprise;
+    }
+
+    movementCandidates(game)
+    {
+        if (Math.random() < Borg.StationTargetChance)
+        {
+            let candidates = this.stationMovementCandidates(game);
+            if (candidates.length)
+            {
+                return candidates;
+            }
+        }
+
+        return super.movementCandidates(game);
+    }
+
     shouldMove(game)
     {
         return (this.moveStep % 2) == 0;
@@ -277,6 +360,16 @@ class Breen extends HostileEnemy
     firePhasers(target, game)
     {
         super.firePhasers(target, game);
+
+        if (target.constructor == StarBase)
+        {
+            if (target.isOperational() && Math.random() < Breen.StationDisruptionChance)
+            {
+                target.disable(game);
+                gameOutputAppend("\nBreen energy dampener disrupts starbase support and nearby sensors!");
+            }
+            return;
+        }
 
         if (!target.isDestroyed() && Math.random() < Breen.DisruptionChance)
         {
@@ -358,6 +451,8 @@ Klingon.stringRepresentation = "+K+";
 Klingon.AggressiveStrikeRange = 3;
 Klingon.AggressiveStrikeChance = .2;
 Klingon.AggressiveStrikeMultiplier = 1.35;
+Klingon.StationAttackRange = 3;
+Klingon.StationAttackChance = .35;
 
 Borg.shieldDeflectionPercent = .25;
 Borg.InstancesDestroyed = 0;
@@ -367,6 +462,7 @@ Borg.displayName = "Borg";
 Borg.stringRepresentation = "+B+";
 Borg.PhaserResistanceStep = .1;
 Borg.MaxPhaserResistance = .45;
+Borg.StationTargetChance = .35;
 
 Breen.shieldDeflectionPercent = .18;
 Breen.InstancesDestroyed = 0;
@@ -377,3 +473,4 @@ Breen.stringRepresentation = "+R+";
 Breen.ChanceMoveTowardEnterprise = .25;
 Breen.DisruptionChance = .18;
 Breen.DisruptionTurns = 1;
+Breen.StationDisruptionChance = .35;

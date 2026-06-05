@@ -275,7 +275,8 @@ class Sector
 
         for (var x in enemyList)
         {
-            enemyList[x].firePhasers(target, game);
+            let selectedTarget = enemyList[x].selectTarget ? enemyList[x].selectTarget(game) : target;
+            enemyList[x].firePhasers(selectedTarget, game);
         }
     }
 
