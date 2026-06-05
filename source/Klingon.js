@@ -13,6 +13,21 @@ class HostileEnemy extends GameObject
         game.destroyHostile(this);
     }
 
+    onTorpedoSplashDamage(energy, game)
+    {
+        gameOutputAppend("\nOverload splash strikes " + this.enemyDescription(game) + " at subsector " + this.subsectorString() + " for " + energy + " damage.");
+        this.shields -= energy;
+
+        if (this.shields <= 0)
+        {
+            game.destroyHostile(this);
+        }
+        else if (game.currentSectorScanned && game.enterprise.canSeeEntity(this))
+        {
+            gameOutputAppend("" + this.shields + " units remain.");
+        }
+    }
+
     onPhaserHit(energy, game)
     {
         let shieldDeflectionLevel = this.constructor.shieldDeflectionPercent * this.shields;
@@ -153,6 +168,21 @@ class Klingon extends HostileEnemy
     {
         return game.primeUniverse ? "klingon fighter" : "enemy ship";
     }
+
+    firePhasers(target, game)
+    {
+        let dist = this.distanceToObject(target);
+        if (dist <= Klingon.AggressiveStrikeRange && Math.random() < Klingon.AggressiveStrikeChance)
+        {
+            let phaserDamage = Math.round(this.phaserDamageBase(dist) * Klingon.AggressiveStrikeMultiplier * randomInt(Klingon.MinPhaserMultiplier, Klingon.MaxPhaserMultiplier));
+            let sstr = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
+            gameOutputAppend("\nKlingon close assault from subsector " + sstr + " for " + phaserDamage + " units");
+            target.onPhaserHit(phaserDamage, game);
+            return;
+        }
+
+        super.firePhasers(target, game);
+    }
     
     static maxInstancesSector()
     {
@@ -185,6 +215,30 @@ class Borg extends HostileEnemy
     constructor()
     {
         super(Borg, 350, 600);
+        this.phaserResistance = 0;
+    }
+
+    onPhaserHit(energy, game)
+    {
+        this.phaserResistance = this.phaserResistance || 0;
+
+        let adjustedEnergy = Math.floor(energy * (1.0 - this.phaserResistance));
+        if (this.phaserResistance > 0)
+        {
+            gameOutputAppend("\nBorg adaptation reduces phaser damage by " + Math.round(100 * this.phaserResistance) + "%.");
+        }
+
+        super.onPhaserHit(adjustedEnergy, game);
+
+        if (this.shields > 0)
+        {
+            let oldResistance = this.phaserResistance;
+            this.phaserResistance = Math.min(Borg.MaxPhaserResistance, this.phaserResistance + Borg.PhaserResistanceStep);
+            if (this.phaserResistance > oldResistance)
+            {
+                gameOutputAppend("Borg shields adapt to the phaser frequency. Phaser resistance is now " + Math.round(100 * this.phaserResistance) + "%.");
+            }
+        }
     }
 
     shouldMove(game)
@@ -218,6 +272,32 @@ class Breen extends HostileEnemy
     constructor()
     {
         super(Breen, 180, 360);
+    }
+
+    firePhasers(target, game)
+    {
+        super.firePhasers(target, game);
+
+        if (!target.isDestroyed() && Math.random() < Breen.DisruptionChance)
+        {
+            let disruptionTargets = [target.components.ShortRangeSensors, target.components.PhaserControl, target.components.PhotonTubes];
+            let component = disruptionTargets[randomInt(0, disruptionTargets.length - 1)];
+            component.disruptTemporarily(Breen.DisruptionTurns);
+
+            if (component == target.components.ShortRangeSensors)
+            {
+                component.generateCorruptGrid();
+                gameOutputAppend("\nBreen energy dampener spike corrupts short-range sensors temporarily!");
+            }
+            else if (component == target.components.PhaserControl)
+            {
+                gameOutputAppend("\nBreen disruption scrambles phaser targeting temporarily!");
+            }
+            else
+            {
+                gameOutputAppend("\nBreen disruption destabilizes photon torpedo targeting temporarily!");
+            }
+        }
     }
 
     movementCandidates(game)
@@ -275,6 +355,9 @@ Klingon.MaxPhaserMultiplier = 3;
 Klingon.MinPhaserMultiplier = 2;
 Klingon.displayName = "Klingon";
 Klingon.stringRepresentation = "+K+";
+Klingon.AggressiveStrikeRange = 3;
+Klingon.AggressiveStrikeChance = .2;
+Klingon.AggressiveStrikeMultiplier = 1.35;
 
 Borg.shieldDeflectionPercent = .25;
 Borg.InstancesDestroyed = 0;
@@ -282,6 +365,8 @@ Borg.MaxPhaserMultiplier = 2;
 Borg.MinPhaserMultiplier = 1;
 Borg.displayName = "Borg";
 Borg.stringRepresentation = "+B+";
+Borg.PhaserResistanceStep = .1;
+Borg.MaxPhaserResistance = .45;
 
 Breen.shieldDeflectionPercent = .18;
 Breen.InstancesDestroyed = 0;
@@ -290,3 +375,5 @@ Breen.MinPhaserMultiplier = 1;
 Breen.displayName = "Breen";
 Breen.stringRepresentation = "+R+";
 Breen.ChanceMoveTowardEnterprise = .25;
+Breen.DisruptionChance = .18;
+Breen.DisruptionTurns = 1;

@@ -1,6 +1,6 @@
 class TorpedoMenu extends Menu
 {
-    constructor(targetList, trekgame)
+    constructor(targetList, trekgame, overloaded=false)
     {
         super();
 
@@ -18,10 +18,10 @@ class TorpedoMenu extends Menu
                     (
                         x + 1,
                         ") ",
-                        "TARGET AT SUBSECTOR ("+targetList[x].subsectorString() + ")",
+                        (overloaded ? "OVERLOAD TARGET AT SUBSECTOR (" : "TARGET AT SUBSECTOR (") + targetList[x].subsectorString() + ")",
                         function()
                         {
-                            trekgame.torpedoHandler(tgt);
+                            trekgame.torpedoHandler(tgt, overloaded);
                             return true;
                         }
                     )
@@ -60,7 +60,7 @@ class TorpedoMenu extends Menu
                 manualString,
                 function()
                 {
-                    trekgame.manualTorpedoHandler();
+                    trekgame.manualTorpedoHandler(overloaded);
                 }
             )
         );

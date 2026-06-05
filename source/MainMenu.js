@@ -265,23 +265,16 @@ class MainMenu extends Menu
                 "PHASERS",
                 function()
                 {
-                    if (!trekgame.enterprise.components.PhotonTubes.canFire())
+                    if (!trekgame.enterprise.components.PhaserControl.canFire())
                     {
                         gameOutputAppend("\nPhasers too damaged to fire!");
                         return true;
                     }
                     if (trekgame.currentSector.countHostileEntities())
                     {
-                        if (trekgame.typingFree)
-                        {
-                            let pm = new PhaserMenu(trekgame);
-                            trekgame.showMenu(pm);
-                            return false;
-                        }
-                        else
-                        {
-                            return trekgame.manualPhaserEntry();
-                        }
+                        let pm = new PhaserMenu(trekgame);
+                        trekgame.showMenu(pm);
+                        return false;
                     }
                     else
                     {
@@ -327,7 +320,40 @@ class MainMenu extends Menu
                 }
             ),
 
-            new MenuOption("3", ") ", "BACK", function(){return true;})
+            new MenuOption
+            (
+                "3",
+                ") ",
+                "PHOTON TORPEDO OVERLOAD (" + (Enterprise.TorpedoEnergyCost + Enterprise.TorpedoOverloadEnergyCost) + " ENERGY)",
+                function()
+                {
+                    if (trekgame.enterprise.torpedoes <= 0)
+                    {
+                        gameOutputAppend("\nWe're out of torpedoes, captain!");
+                    }
+                    else if (trekgame.enterprise.components.PhotonTubes.canFire())
+                    {
+                        gameOutputAppend("\nLoading photon torpedo overload. One torpedo and extra energy will be expended.");
+                        if (trekgame.enterprise.components.PhotonTubes.targetingAvailable())
+                        {
+                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileEntities(), trekgame, true);
+                            trekgame.awaitInput(torpMenu.toString(), 1, function(inputline){return torpMenu.chooseOption(inputline);});
+                        }
+                        else
+                        {
+                            gameOutputAppend("\nDue to damage, torpedo targeting computer is nonfunctional.");
+                            gameOutputAppend("You will have to enter the overloaded torpedo destination coordinates manually!");
+                            trekgame.manualTorpedoHandler(true);
+                        }
+                    }
+                    else
+                    {
+                        gameOutputAppend("Torpedo tubes too damaged to fire!");
+                    }
+                }
+            ),
+
+            new MenuOption("4", ") ", "BACK", function(){return true;})
 
         );
 

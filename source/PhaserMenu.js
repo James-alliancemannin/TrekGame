@@ -67,11 +67,61 @@ class PhaserMenu extends Menu
                     trekgame.manualPhaserEntry();
                     return false;
                 }),
-            new MenuOption("5", ") ", "BACK", 
+            new MenuOption("5", ") ", "FOCUSED PHASER STRIKE",
+                function()
+                {
+                    trekgame.showFocusedPhaserTargetMenu();
+                    return false;
+                }),
+            new MenuOption("6", ") ", "BACK", 
                 function()
                 {
                     return true;
                 })
         ];
+    }
+}
+
+class FocusedPhaserTargetMenu extends Menu
+{
+    constructor(targetList, trekgame)
+    {
+        super();
+
+        this.options = [];
+
+        for (var x = 0; x < targetList.length; x++)
+        {
+            let tgt = targetList[x];
+
+            if (trekgame.enterprise.canSeeEntity(tgt))
+            {
+                this.options.push
+                (
+                    new MenuOption
+                    (
+                        x + 1,
+                        ") ",
+                        "FOCUSED STRIKE AT SUBSECTOR (" + tgt.subsectorString() + ") - " + tgt.constructor.displayName.toUpperCase(),
+                        function()
+                        {
+                            trekgame.focusedPhaserTargetHandler(tgt);
+                            return false;
+                        }
+                    )
+                );
+            }
+        }
+
+        this.options.push
+        (
+            new MenuOption
+            (
+                this.options.length + 1,
+                ") ",
+                "BACK",
+                function(){return true;}
+            )
+        );
     }
 }
