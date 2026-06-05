@@ -25,6 +25,68 @@ function padStringToLength(str, len, padWithChar = ' ')
     return leftPadStr.padEnd(len, padWithChar);
 }
 
+
+function htmlEscape(str)
+{
+    return ("" + str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function spanClass(className, text)
+{
+    return '<span class="' + className + '">' + htmlEscape(text) + '</span>';
+}
+
+function mapCssClassForEntity(gameObject)
+{
+    if (!gameObject || !gameObject.constructor)
+    {
+        return "map-empty";
+    }
+
+    if (gameObject.constructor == Enterprise)
+    {
+        return "map-enterprise";
+    }
+    if (gameObject.constructor == Klingon)
+    {
+        return "map-klingon";
+    }
+    if (gameObject.constructor == Borg)
+    {
+        return "map-borg";
+    }
+    if (gameObject.constructor == Breen)
+    {
+        return "map-breen";
+    }
+    if (gameObject.constructor == StarBase)
+    {
+        return "map-starbase";
+    }
+    if (gameObject.constructor == Star)
+    {
+        return "map-star";
+    }
+    if (gameObject.constructor == Planet)
+    {
+        return "map-planet";
+    }
+
+    return "map-object";
+}
+
+function styledMapToken(token, className, width = subsectorDisplayWidthChars)
+{
+    let paddedToken = ("" + token).padStart(width, ' ');
+    let leadingSpaces = paddedToken.length - paddedToken.trimStart().length;
+    return " ".repeat(leadingSpaces) + spanClass(className, paddedToken.trimStart());
+}
+
+function styledStatusToken(token, className)
+{
+    return spanClass(className, token);
+}
+
 function randomInt(min, max)
 {
     checkArgumentsDefinedAndHaveValue(arguments);
