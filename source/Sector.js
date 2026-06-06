@@ -208,9 +208,24 @@ class Sector
         return this.getEntitiesOfTypes(TrekGame.EnemyTypes);
     }
 
+    getHostileInstallations()
+    {
+        return this.getEntitiesOfTypes(TrekGame.InstallationTypes);
+    }
+
+    getHostileTargets()
+    {
+        return this.getEntitiesOfTypes(TrekGame.HostileTargetTypes);
+    }
+
     countHostileEntities()
     {
         return this.getHostileEntities().length;
+    }
+
+    countHostileTargets()
+    {
+        return this.getHostileTargets().length;
     }
 
     isInBounds(x, y)
