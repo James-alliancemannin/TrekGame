@@ -16,13 +16,21 @@ class GalaxyMap extends Grid
     static ConstructFromJSData(jsData)
     {
         let rval = new GalaxyMap(mapWidthSectors, mapHeightSectors, []);
+        let savedWidth = jsData.width || mapWidthSectors;
+        let savedHeight = jsData.height || Math.ceil(jsData.contents.length / savedWidth);
 
-        var x;
-        for (x in jsData.contents)
+        // Saves made on smaller maps retain their original coordinates.  New
+        // sectors are deliberately empty rather than silently adding threats.
+        for (let y = 0; y < Math.min(savedHeight, mapHeightSectors); y++)
         {
-            let entitiesSectorJS = jsData.contents[x];
-
-            rval.contents[x].populateFromJSData(entitiesSectorJS);
+            for (let x = 0; x < Math.min(savedWidth, mapWidthSectors); x++)
+            {
+                let entitiesSectorJS = jsData.contents[y * savedWidth + x];
+                if (entitiesSectorJS)
+                {
+                    rval.lookup(x, y).populateFromJSData(entitiesSectorJS);
+                }
+            }
         }
 
         return rval;

@@ -14,7 +14,7 @@ class Star extends GameObject
 
     toString()
     {
-        return "*";
+        return ".+.";
     }
 
     static maxInstancesSector()

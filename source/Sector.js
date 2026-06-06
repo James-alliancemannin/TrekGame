@@ -382,7 +382,8 @@ class Sector
         let borderStringPost = "   " + mapFooter(sectorWidthSubsectors) + '\n';
         let borderStringPre = "   " + mapHeader(sectorWidthSubsectors); 
 
-        let sectorStringGrid = new Grid(this.width, this.height, function(){return " ".padStart(subsectorDisplayWidthChars, ' ')})
+        let sector = this;
+        let sectorStringGrid = new Grid(this.width, this.height, function(x, y){return sectorBackdropToken(sector.x, sector.y, x, y)})
 
         var gameObjectIndex;
         for (gameObjectIndex in this.sectorEntities)

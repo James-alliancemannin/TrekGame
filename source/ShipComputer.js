@@ -112,8 +112,10 @@ class ShipComputerMenu extends Menu
                         return true;
                     }
 
-                    gameOutputAppend("\nSENSOR RECORDS OF ENEMIES IN EACH SECTOR");
-                    gameOutputAppend(trekGame.enterprise.sensorHistory.mapStringForEntityTypes(TrekGame.HostileTargetTypes, trekGame.enterprise));
+                    gameOutputAppend("\nSENSOR RECORDS: HOSTILE SHIPS IN EACH SECTOR");
+                    gameOutputAppend(trekGame.enterprise.sensorHistory.mapStringForEntityTypes(TrekGame.EnemyTypes, trekGame.enterprise));
+                    gameOutputAppend("\nSENSOR RECORDS: HOSTILE INSTALLATIONS IN EACH SECTOR");
+                    gameOutputAppend(trekGame.enterprise.sensorHistory.mapStringForEntityTypes(TrekGame.InstallationTypes, trekGame.enterprise));
                     return true;
                 }
             ),

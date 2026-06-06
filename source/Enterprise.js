@@ -468,7 +468,7 @@ class Enterprise extends GameObject
 
     toString()
     {
-        return "<*>";
+        return "<E>";
     }
 
     static maxInstancesGame()
@@ -789,22 +789,19 @@ class Enterprise extends GameObject
        
         let klingonLRS = this.lrsStringEntityTypes(galaxyMap, TrekGame.HostileTargetTypes);
         let starLRS = this.lrsStringEntityType(galaxyMap, Star);
-        //let starbaseLRS = this.lrsStringEntityType(galaxyMap, StarBase);
+        let stationLRS = this.lrsStringEntityTypes(galaxyMap, [StarBase].concat(TrekGame.FriendlyStationTypes));
 
-        let rval = "\t HOSTILES";
-        
-        //rval += "\t\t  STARS\t\t\tSTARBASES\n";
-        rval += "\t\t  STARS\n";
+        let rval = "\t HOSTILE SHIPS/INSTALLATIONS";
+        rval += "\t STARS\t\t FRIENDLY STATIONS\n";
 
         let klingonLRSLines = klingonLRS.split('\n');
         let starLRSLines = starLRS.split('\n');
-        //let starbaseLRSLines = starbaseLRS.split('\n');
+        let stationLRSLines = stationLRS.split('\n');
 
         console.assert(klingonLRSLines.length == starLRSLines.length);
         for (var x in klingonLRSLines)
         {
-            //rval += klingonLRSLines[x] + "\t" + starLRSLines[x] + "\t" + starbaseLRSLines[x] + '\n';
-            rval += klingonLRSLines[x] + "\t" + starLRSLines[x] + '\n';
+            rval += klingonLRSLines[x] + "\t" + starLRSLines[x] + "\t" + stationLRSLines[x] + '\n';
         }
 
         return rval;
@@ -874,7 +871,17 @@ class Enterprise extends GameObject
         Object.assign(rval, jsData);
 
         rval.sensorHistory = new SensorHistory();
-        Object.assign(rval.sensorHistory, jsData.sensorHistory);
+        let savedHistory = jsData.sensorHistory || {};
+        let savedWidth = savedHistory.width || mapWidthSectors;
+        let savedHeight = savedHistory.height || Math.ceil((savedHistory.contents || []).length / savedWidth);
+        for (let y = 0; y < Math.min(savedHeight, mapHeightSectors); y++)
+        {
+            for (let x = 0; x < Math.min(savedWidth, mapWidthSectors); x++)
+            {
+                let savedCell = savedHistory.contents[y * savedWidth + x];
+                if (savedCell) rval.sensorHistory.setValue(x, y, savedCell);
+            }
+        }
 
         rval.createComponents();
 
@@ -899,7 +906,7 @@ Enterprise.TorpedoOverloadEnergyCost = 40;
 Enterprise.TorpedoOverloadSplashDamage = 120;
 Enterprise.FocusedPhaserMinimumEnergy = 150;
 Enterprise.EnemyScanCost = 10;
-Enterprise.PhaserTargets = [Klingon, Borg, Breen, KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub];
+Enterprise.PhaserTargets = [Klingon, Borg, Breen, KlingonBattleStation, KlingonForwardFortress, BreenDampeningArray, BorgTranswarpHub];
 Enterprise.EnergyCostPerSubsector = 1.0;        // Warp cost per subsector moved
 Enterprise.EnergyCostPerSector = 10.0;          // Warp cost per sector moved
 Enterprise.DamagePassthroughRatio = .25;        // if damage is 25% of shields or more, pass damage through to components

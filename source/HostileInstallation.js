@@ -118,8 +118,8 @@ class KlingonBattleStation extends HostileInstallation
         }
     }
 
-    static minInstancesGame() { return 2; }
-    static maxInstancesGame() { return 4; }
+    static minInstancesGame() { return 3; }
+    static maxInstancesGame() { return 6; }
 }
 
 class BreenDampeningArray extends HostileInstallation
@@ -150,8 +150,8 @@ class BreenDampeningArray extends HostileInstallation
         }
     }
 
-    static minInstancesGame() { return 2; }
-    static maxInstancesGame() { return 3; }
+    static minInstancesGame() { return 3; }
+    static maxInstancesGame() { return 5; }
 }
 
 class BorgTranswarpHub extends HostileInstallation
@@ -192,6 +192,28 @@ class BorgTranswarpHub extends HostileInstallation
 
 HostileInstallation.TorpedoDamage = 350;
 
+class KlingonForwardFortress extends HostileInstallation
+{
+    constructor()
+    {
+        super(KlingonForwardFortress, KlingonForwardFortress.StartShields, KlingonForwardFortress.StartIntegrity);
+    }
+
+    combatStep(game)
+    {
+        super.combatStep(game);
+        if (this.combatStepCount % KlingonForwardFortress.ChargeTurns == 0)
+        {
+            gameOutputAppend("\nKlingon fortress charges a heavy disruptor cannon.");
+            this.fireAtEnterprise(game, KlingonForwardFortress.MinDamage, KlingonForwardFortress.MaxDamage);
+        }
+    }
+
+    static minInstancesGame() { return 1; }
+    static maxInstancesGame() { return 1; }
+    static sectorInstanceProbabilities() { return [.995, .005]; }
+}
+
 KlingonBattleStation.displayName = "Klingon Battle Station";
 KlingonBattleStation.stringRepresentation = "{K}";
 KlingonBattleStation.StartShields = 750;
@@ -199,6 +221,8 @@ KlingonBattleStation.StartIntegrity = 500;
 KlingonBattleStation.AttackChance = .35;
 KlingonBattleStation.MinDamage = 180;
 KlingonBattleStation.MaxDamage = 300;
+KlingonBattleStation.weaponProfile = "disruptor cannon";
+KlingonBattleStation.scanDescription = "Static Klingon weapons station.";
 KlingonBattleStation.InstancesDestroyed = 0;
 
 BreenDampeningArray.displayName = "Breen Dampening Array";
@@ -210,6 +234,8 @@ BreenDampeningArray.MinDamage = 70;
 BreenDampeningArray.MaxDamage = 140;
 BreenDampeningArray.DisruptionChance = .32;
 BreenDampeningArray.DisruptionTurns = 1;
+BreenDampeningArray.weaponProfile = "ion dampening pulse";
+BreenDampeningArray.scanDescription = "Disrupts sensors and weapon control.";
 BreenDampeningArray.InstancesDestroyed = 0;
 
 BorgTranswarpHub.displayName = "Borg Transwarp Hub";
@@ -223,4 +249,19 @@ BorgTranswarpHub.MaxDamage = 210;
 BorgTranswarpHub.ReinforcementChance = .12;
 BorgTranswarpHub.ReservedEmptySquares = 8;
 BorgTranswarpHub.MaxSectorShips = 5;
+BorgTranswarpHub.weaponProfile = "transwarp surge and regeneration";
+BorgTranswarpHub.scanDescription = "High-risk reinforcement hub; tactical retreat advised.";
 BorgTranswarpHub.InstancesDestroyed = 0;
+
+
+KlingonForwardFortress.displayName = "Klingon Forward Fortress";
+KlingonForwardFortress.stringRepresentation = "{F}";
+KlingonForwardFortress.StartShields = 1050;
+KlingonForwardFortress.StartIntegrity = 850;
+KlingonForwardFortress.ChargeTurns = 3;
+KlingonForwardFortress.MinDamage = 260;
+KlingonForwardFortress.MaxDamage = 390;
+KlingonForwardFortress.weaponProfile = "heavy disruptor cannon (charges 3 turns)";
+KlingonForwardFortress.silhouette = "\n /--F--/\n |==K==|\n /--F--/";
+KlingonForwardFortress.scanDescription = "Rare fortified command post supporting Klingon routes.";
+KlingonForwardFortress.InstancesDestroyed = 0;

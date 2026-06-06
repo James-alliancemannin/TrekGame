@@ -145,7 +145,7 @@ class StarBase extends GameObject
 
     toString()
     {
-        return ">!<";
+        return "[S]";
     }
 
     static maxInstancesSector()
@@ -155,7 +155,12 @@ class StarBase extends GameObject
 
     static minInstancesGame()
     {
-        return 1;
+        return 2;
+    }
+
+    static maxInstancesGame()
+    {
+        return 6;
     }
 
     static sectorInstanceProbabilities()

@@ -289,7 +289,7 @@ class Klingon extends HostileEnemy
 
     static maxInstancesGame()
     {
-        return 18;
+        return 26;
     }
 
     static minInstancesGame()
@@ -371,12 +371,12 @@ class Borg extends HostileEnemy
 
     static maxInstancesGame()
     {
-        return 6;
+        return 8;
     }
 
     static minInstancesGame()
     {
-        return 2;
+        return 3;
     }
 }
 
@@ -470,12 +470,12 @@ class Breen extends HostileEnemy
 
     static maxInstancesGame()
     {
-        return 10;
+        return 14;
     }
 
     static minInstancesGame()
     {
-        return 3;
+        return 5;
     }
 }
 
@@ -484,7 +484,7 @@ Klingon.InstancesDestroyed = 0;
 Klingon.MaxPhaserMultiplier = 3;
 Klingon.MinPhaserMultiplier = 2;
 Klingon.displayName = "Klingon";
-Klingon.stringRepresentation = "+K+";
+Klingon.stringRepresentation = "/K\\";
 Klingon.AggressiveStrikeRange = 3;
 Klingon.AggressiveStrikeChance = .2;
 Klingon.AggressiveStrikeMultiplier = 1.35;
@@ -496,7 +496,7 @@ Borg.InstancesDestroyed = 0;
 Borg.MaxPhaserMultiplier = 2;
 Borg.MinPhaserMultiplier = 1;
 Borg.displayName = "Borg";
-Borg.stringRepresentation = "+B+";
+Borg.stringRepresentation = "[#]";
 Borg.PhaserResistanceStep = .1;
 Borg.MaxPhaserResistance = .45;
 Borg.StationTargetChance = .35;
@@ -506,7 +506,7 @@ Breen.InstancesDestroyed = 0;
 Breen.MaxPhaserMultiplier = 3;
 Breen.MinPhaserMultiplier = 1;
 Breen.displayName = "Breen";
-Breen.stringRepresentation = "+R+";
+Breen.stringRepresentation = "<R>";
 Breen.ChanceMoveTowardEnterprise = .25;
 Breen.DisruptionChance = .18;
 Breen.DisruptionTurns = 1;

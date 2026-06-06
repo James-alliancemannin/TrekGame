@@ -20,6 +20,7 @@ IncludeSource util.js
 IncludeSource Grid.js
 IncludeSource GameObject.js
 IncludeSource StarBase.js
+IncludeSource FriendlyStation.js
 IncludeSource Planet.js
 IncludeSource Klingon.js
 IncludeSource HostileInstallation.js

@@ -22,7 +22,7 @@ class Planet extends GameObject
 
     toString()
     {
-        return "O";
+        return "(O)";
     }
 
     static maxInstancesGame()
@@ -47,6 +47,6 @@ class Planet extends GameObject
     }
 }
 
-Planet.MaxInstances = 3;
-Planet.MinInstances = 1;
+Planet.MaxInstances = 5;
+Planet.MinInstances = 2;
 

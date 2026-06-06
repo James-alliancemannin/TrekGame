@@ -72,11 +72,11 @@ class TrekGame
         {
             Planet.MaxInstances = 0;
             Planet.MinInstances = 0;
-            Klingon.stringRepresentation = "+K+";
+            Klingon.stringRepresentation = "/K\\";
         }
         else
         {
-            Klingon.stringRepresentation = "+F+";
+            Klingon.stringRepresentation = "/F\\";
         }
 
         if (this.typingFree)
@@ -148,6 +148,10 @@ class TrekGame
         if (typeof this.installationsDestroyed != "number")
         {
             this.installationsDestroyed = 0;
+        }
+        if (typeof this.expandedGalaxyVersion != "number")
+        {
+            this.expandedGalaxyVersion = 1;
         }
     }
 
@@ -304,12 +308,13 @@ class TrekGame
 
     hostileSensorTypes()
     {
-        return [Star].concat(TrekGame.HostileTargetTypes);
+        return [Star, StarBase].concat(TrekGame.FriendlyStationTypes).concat(TrekGame.HostileTargetTypes);
     }
 
     hostileSensorIdentifiers(sensorHistory)
     {
         let tokens = [];
+        if (sensorHistory[KlingonForwardFortress] > 0) tokens.push('{F}');
         if (sensorHistory[KlingonBattleStation] > 0) tokens.push('{K}');
         if (sensorHistory[BreenDampeningArray] > 0) tokens.push('{R}');
         if (sensorHistory[BorgTranswarpHub] > 0) tokens.push('[B]');
@@ -677,10 +682,12 @@ class TrekGame
         "SECTOR (X,Y)          " + (this.enterprise.sectorX+1) +  ',' + (this.enterprise.sectorY+1) + '\n' +
         "SUBSECTOR (X,Y)       " + (this.enterprise.subsectorX+1) +  ',' + (this.enterprise.subsectorY+1) + "\n" +
         "PHOTON TORPEDOES      " + this.enterprise.torpedoes + '\n' +
-        "SHIELD ENERGY         " + this.enterprise.shields + '\n' +
+        "SHIELD ENERGY         " + (this.enterprise.shields <= 500 ? styledStatusToken(this.enterprise.shields + " [WEAK]", "status-alert-yellow") : this.enterprise.shields) + '\n' +
+        "SECTOR TERRAIN        " + sectorTerrainNote(this.enterprise.sectorX, this.enterprise.sectorY) + '\n' +
         "FREE ENERGY           " + this.enterprise.freeEnergy + '\n' +
         "HOSTILES REMAINING    " + this.hostileBreakdownString() + '\n' +
         this.installationStatusString() +
+        this.friendlyStationStatusString() +
         "STARBASES             " + this.starbaseStatusString() + '\n' +
         "OBJECTIVES            " + this.objectiveStatusString() + '\n' +
         this.advancedSystemsStatusString() +
@@ -701,6 +708,8 @@ class TrekGame
             if (this.currentSectorScanned && this.enterprise.canSeeEntity(installation))
             {
                 detail += " shields " + installation.shields + " / integrity " + installation.integrity;
+                if (installation.integrity <= installation.maxIntegrity * .5) detail += " [DAMAGED]";
+                if (installation.constructor.weaponProfile) detail += " / " + installation.constructor.weaponProfile;
             }
             lines.push(detail);
         }
@@ -711,6 +720,17 @@ class TrekGame
             rval += "PURSUIT               " + styledStatusToken("HOSTILE WARP TRACE", "status-alert-red") + "\n";
         }
         return rval;
+    }
+
+    friendlyStationStatusString()
+    {
+        let stations = this.currentSector.getEntitiesOfTypes(TrekGame.FriendlyStationTypes);
+        let details = stations.map(function(station)
+        {
+            station.ensureStationFields();
+            return station.constructor.displayName + " integrity " + station.integrity + " / " + station.constructor.supportRole;
+        });
+        return details.length ? "FRIENDLY STATION      " + styledStatusToken(details.join(" | "), "status-docked") + "\n" : "";
     }
 
     conditionStatusString()
@@ -1230,6 +1250,9 @@ class TrekGame
                 gameOutputAppend("\nEnemy in subsector (" + k.subsectorString() + ")");
                 gameOutputAppend("Target type : " + k.constructor.displayName);
                 gameOutputAppend("Shield level : " + kshields + (typeof k.integrity == "number" ? " / Integrity : " + k.integrity : ""));
+                if (k.constructor.silhouette) gameOutputAppend(k.constructor.silhouette);
+                if (k.constructor.weaponProfile) gameOutputAppend("Weapon profile : " + k.constructor.weaponProfile);
+                if (k.constructor.scanDescription) gameOutputAppend("Assessment : " + k.constructor.scanDescription);
                 gameOutputAppend("Phaser energy to destroy : " + Math.round(e_required_min) + "-" + Math.round(e_required_max));
             }
         }
@@ -1695,6 +1718,11 @@ class TrekGame
         {
             this.applyStationSupport();
         }
+        let friendlyStations = this.currentSector.getEntitiesOfTypes(TrekGame.FriendlyStationTypes).slice();
+        for (var stationIndex in friendlyStations)
+        {
+            friendlyStations[stationIndex].combatStep(this);
+        }
         this.currentSector.hostileEnemiesMove(this);
         this.currentSector.hostileEnemiesFire(this.enterprise, this);
         let installations = this.currentSector.getHostileInstallations().slice();
@@ -1798,11 +1826,11 @@ class TrekGame
             
             if (this.primeUniverse)
             {
-                updateMapFooter("E: ENTERPRISE | K/B/R: SHIPS | {K}/{R}/[B]: INSTALLATIONS | S: STARBASE | ?: UNEXPLORED");
+                updateMapFooter("E:&lt;E&gt; | K:/K\\ | B:[#] | R:&lt;R&gt; | {K}/{F}/{R}/[B]: HOSTILE | [S]/[P]: FRIENDLY | !:DISTRESS | . o ~:SPACE | ?:UNEXPLORED");
             }
             else
             {
-                updateMapFooter("E: ENTERPRISE | F/B/R: SHIPS | {K}/{R}/[B]: INSTALLATIONS | S: STARBASE | ?: UNEXPLORED");
+                updateMapFooter("E:&lt;E&gt; | F:/F\\ | B:[#] | R:&lt;R&gt; | {K}/{F}/{R}/[B]: HOSTILE | [S]/[P]: FRIENDLY | !:DISTRESS | . o ~:SPACE | ?:UNEXPLORED");
             }
         }
         else
@@ -2050,6 +2078,8 @@ class TrekGame
         if (this.currentSector.countHostileTargets())
         {
             flags.push("RED ALERT");
+            if (this.currentSector.getHostileInstallations().length) flags.push("INSTALLATION HAZARD");
+            if (this.currentSector.countEntitiesOfType(BorgTranswarpHub)) flags.push("BORG HUB: HIGH RISK");
 
             let estAvail = this.enterprise.components.ShieldControl.estimateAvailable();
             let critical = this.enterprise.isShieldLevelCritical(this.currentSector.getHostileEntities());
@@ -2073,9 +2103,11 @@ class TrekGame
             
         }
 
+        if (this.pursuitState.active) flags.push("PURSUED");
+
         return flags.map(function(flag)
         {
-            if (flag == "RED ALERT" || flag == "SHIELDS CRITICAL")
+            if (flag == "RED ALERT" || flag == "SHIELDS CRITICAL" || flag == "INSTALLATION HAZARD" || flag == "BORG HUB: HIGH RISK" || flag == "PURSUED")
             {
                 return styledStatusToken(flag, "status-alert-red");
             }
@@ -2136,7 +2168,15 @@ class TrekGame
 
                     if (this.galaxyMap.lookup(x,y).countEntitiesOfType(StarBase) > 0)
                     {
-                        identifiers += 'S';
+                        identifiers = appendMapIdentifier(identifiers, 'S');
+                    }
+                    if (this.galaxyMap.lookup(x,y).countEntitiesOfType(DefencePlatform) > 0)
+                    {
+                        identifiers = appendMapIdentifier(identifiers, 'P');
+                    }
+                    if (this.distressBeacon.discovered && !this.distressBeacon.completed && this.distressBeacon.sectorX == x && this.distressBeacon.sectorY == y)
+                    {
+                        identifiers = appendMapIdentifier(identifiers, '!');
                     }
 
                     if (identifiers.indexOf('E') != -1)
@@ -2151,7 +2191,7 @@ class TrekGame
                     {
                         identifierClass = "map-breen-installation";
                     }
-                    else if (identifiers.indexOf('{K}') != -1)
+                    else if (identifiers.indexOf('{K}') != -1 || identifiers.indexOf('{F}') != -1)
                     {
                         identifierClass = "map-klingon-installation";
                     }
@@ -2170,6 +2210,10 @@ class TrekGame
                     else if (identifiers.indexOf('S') != -1)
                     {
                         identifierClass = "map-starbase";
+                    }
+                    else if (identifiers.indexOf('P') != -1)
+                    {
+                        identifierClass = "map-friendly-station";
                     }
                 }
                 else
@@ -2202,7 +2246,7 @@ class TrekGame
         let borderStringPost = "   " + mapFooter(sectorWidthSubsectors);
         let borderStringPre = "   " + mapHeader(sectorWidthSubsectors) + '\n';
 
-        let sectorStringGrid = new Grid(sect.width, sect.height, function(){return " ".padStart(subsectorDisplayWidthChars, ' ')})
+        let sectorStringGrid = new Grid(sect.width, sect.height, function(x, y){return sectorBackdropToken(sect.x, sect.y, x, y)})
 
         var gameObjectIndex;
         for (gameObjectIndex in sect.sectorEntities)
@@ -2252,11 +2296,12 @@ function clickGridHandler(x,y)
 }
 
 TrekGame.EnemyTypes = [Klingon, Borg, Breen];
-TrekGame.InstallationTypes = [KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub];
+TrekGame.InstallationTypes = [KlingonBattleStation, KlingonForwardFortress, BreenDampeningArray, BorgTranswarpHub];
+TrekGame.FriendlyStationTypes = [DefencePlatform];
 TrekGame.HostileTargetTypes = TrekGame.EnemyTypes.concat(TrekGame.InstallationTypes);
-TrekGame.EntityTypes = [Star, StarBase, Klingon, Borg, Breen, KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub, Planet];
-TrekGame.BaseMissionTime = 25;
-TrekGame.MissionTimeSpread = 10;
+TrekGame.EntityTypes = [Star, StarBase, DefencePlatform, Klingon, Borg, Breen, KlingonBattleStation, KlingonForwardFortress, BreenDampeningArray, BorgTranswarpHub, Planet];
+TrekGame.BaseMissionTime = 34;
+TrekGame.MissionTimeSpread = 12;
 TrekGame.BombardCost = 3;
 TrekGame.BombardReinforcementSize = 5;
 TrekGame.HostilePursuitChance = .18;

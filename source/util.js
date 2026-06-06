@@ -49,31 +49,35 @@ function mapCssClassForEntity(gameObject)
     }
     if (gameObject.constructor == Klingon)
     {
-        return "map-klingon";
+        return "map-klingon" + enemyDamageCssClass(gameObject);
     }
     if (gameObject.constructor == Borg)
     {
-        return "map-borg";
+        return "map-borg" + enemyDamageCssClass(gameObject);
     }
     if (gameObject.constructor == Breen)
     {
-        return "map-breen";
+        return "map-breen" + enemyDamageCssClass(gameObject);
     }
-    if (gameObject.constructor == KlingonBattleStation)
+    if (gameObject.constructor == KlingonBattleStation || gameObject.constructor == KlingonForwardFortress)
     {
-        return "map-klingon-installation";
+        return "map-klingon-installation" + mapDamageCssClass(gameObject);
     }
     if (gameObject.constructor == BreenDampeningArray)
     {
-        return "map-breen-installation";
+        return "map-breen-installation" + mapDamageCssClass(gameObject);
     }
     if (gameObject.constructor == BorgTranswarpHub)
     {
-        return "map-borg-installation";
+        return "map-borg-installation" + mapDamageCssClass(gameObject);
     }
     if (gameObject.constructor == StarBase)
     {
-        return "map-starbase";
+        return "map-starbase" + mapDamageCssClass(gameObject);
+    }
+    if (gameObject.constructor == DefencePlatform)
+    {
+        return "map-friendly-station" + mapDamageCssClass(gameObject);
     }
     if (gameObject.constructor == Star)
     {
@@ -85,6 +89,45 @@ function mapCssClassForEntity(gameObject)
     }
 
     return "map-object";
+}
+
+function enemyDamageCssClass(gameObject)
+{
+    let warningLevel = gameObject.constructor == Borg ? 300 : (gameObject.constructor == Breen ? 180 : 150);
+    return typeof gameObject.shields == "number" && gameObject.shields <= warningLevel ? " map-damaged" : "";
+}
+
+function mapDamageCssClass(gameObject)
+{
+    let maximum = gameObject.maxIntegrity || gameObject.constructor.StartIntegrity;
+    if (typeof gameObject.integrity == "number" && maximum && gameObject.integrity <= maximum * .5)
+    {
+        return " map-damaged";
+    }
+    return "";
+}
+
+function sectorBackdropToken(sectorX, sectorY, subsectorX, subsectorY)
+{
+    let hash = ((sectorX + 1) * 97 + (sectorY + 1) * 53 + (subsectorX + 1) * 29 + (subsectorY + 1) * 17) % 47;
+    if (hash == 0) return styledMapToken("~", "map-anomaly");
+    if (hash == 7 || hash == 19) return styledMapToken("o", "map-asteroid");
+    if (hash == 3 || hash == 11 || hash == 31) return styledMapToken(".", "map-backdrop");
+    return " ".repeat(subsectorDisplayWidthChars);
+}
+
+function sectorTerrainNote(sectorX, sectorY)
+{
+    let hash = ((sectorX + 1) * 37 + (sectorY + 1) * 61) % 13;
+    if (hash == 0) return "ION INTERFERENCE DETECTED";
+    if (hash == 4) return "DENSE DEBRIS FIELD";
+    if (hash == 8) return "SUBSPACE ANOMALY TRACE";
+    return "SPARSE STELLAR BACKDROP";
+}
+
+function appendMapIdentifier(current, token, maxLength = 7)
+{
+    return current.length + token.length <= maxLength ? current + token : current;
 }
 
 function styledMapToken(token, className, width = subsectorDisplayWidthChars)
