@@ -23,6 +23,7 @@ class TrekGame
 
             gamerval.mapScreenGalaxy = false;
             gamerval.phase3Defaults();
+            gamerval.phase6Defaults();
             gamerval.enterprise.ensureAdvancedSystemsFields();
 
             gamerval.checkStarbaseDock();
@@ -113,6 +114,7 @@ class TrekGame
 
         this.currentSectorScanned = false;
         this.phase3Defaults();
+        this.phase6Defaults();
 
         this.createMenus();
         this.setInputPrompt(this.mainMenu.toString());
@@ -134,6 +136,18 @@ class TrekGame
         if (!this.distressBeacon)
         {
             this.distressBeacon = {sectorX: randomInt(0, mapWidthSectors - 1), sectorY: randomInt(0, mapHeightSectors - 1), discovered:false, completed:false};
+        }
+    }
+
+    phase6Defaults()
+    {
+        if (!this.pursuitState || typeof this.pursuitState.active != "boolean")
+        {
+            this.pursuitState = {active:false, turns:0};
+        }
+        if (typeof this.installationsDestroyed != "number")
+        {
+            this.installationsDestroyed = 0;
         }
     }
 
@@ -265,9 +279,9 @@ class TrekGame
     sensorHistoryHostileCount(sensorHistory)
     {
         let rval = 0;
-        for (var x in TrekGame.EnemyTypes)
+        for (var x in TrekGame.HostileTargetTypes)
         {
-            let EnemyType = TrekGame.EnemyTypes[x];
+            let EnemyType = TrekGame.HostileTargetTypes[x];
             if (EnemyType in sensorHistory)
             {
                 rval += sensorHistory[EnemyType];
@@ -278,9 +292,9 @@ class TrekGame
 
     sensorHistoryHasHostileData(sensorHistory)
     {
-        for (var x in TrekGame.EnemyTypes)
+        for (var x in TrekGame.HostileTargetTypes)
         {
-            if (TrekGame.EnemyTypes[x] in sensorHistory)
+            if (TrekGame.HostileTargetTypes[x] in sensorHistory)
             {
                 return true;
             }
@@ -290,26 +304,25 @@ class TrekGame
 
     hostileSensorTypes()
     {
-        return [Star].concat(TrekGame.EnemyTypes);
+        return [Star].concat(TrekGame.HostileTargetTypes);
     }
 
     hostileSensorIdentifiers(sensorHistory)
     {
+        let tokens = [];
+        if (sensorHistory[KlingonBattleStation] > 0) tokens.push('{K}');
+        if (sensorHistory[BreenDampeningArray] > 0) tokens.push('{R}');
+        if (sensorHistory[BorgTranswarpHub] > 0) tokens.push('[B]');
+        if (sensorHistory[Klingon] > 0) tokens.push(this.primeUniverse ? 'K' : 'F');
+        if (sensorHistory[Borg] > 0) tokens.push('B');
+        if (sensorHistory[Breen] > 0) tokens.push('R');
+
         let rval = "";
-
-        if (sensorHistory[Klingon] > 0)
+        for (var x in tokens)
         {
-            rval += this.primeUniverse ? 'K' : 'F';
+            if ((rval + tokens[x]).length > 6) break;
+            rval += tokens[x];
         }
-        if (sensorHistory[Borg] > 0)
-        {
-            rval += 'B';
-        }
-        if (sensorHistory[Breen] > 0)
-        {
-            rval += 'R';
-        }
-
         return rval;
     }
 
@@ -344,6 +357,15 @@ class TrekGame
     destroyKlingon(k)
     {
         this.destroyHostile(k);
+    }
+
+    destroyInstallation(installation)
+    {
+        gameOutputAppend("Installation destroyed. Hostile command network weakened.");
+        this.currentSector.removeEntity(installation);
+        installation.constructor.Instances = Math.max(0, (installation.constructor.Instances || 1) - 1);
+        installation.constructor.InstancesDestroyed = (installation.constructor.InstancesDestroyed || 0) + 1;
+        this.installationsDestroyed++;
     }
 
     printStory()
@@ -410,7 +432,7 @@ class TrekGame
             gameOutputAppend(storyString);
         }
 
-        let enemyCount = this.currentSector.countHostileEntities();
+        let enemyCount = this.currentSector.countHostileTargets();
         if (enemyCount)
         {
             gameOutputAppend("\n=============================\n");
@@ -587,13 +609,60 @@ class TrekGame
 
     changeToSector(qX, qY)
     {
+        this.phase6Defaults();
         this.currentSectorScanned = false;
 
-        this.currentSector.removeEntity(this.enterprise);
+        let previousSector = this.currentSector;
+        let pursuitCandidates = previousSector.getHostileEntities().slice();
+        let installationRetreat = previousSector.getHostileInstallations().length > 0 && pursuitCandidates.length > 0;
+        let pursuitChance = installationRetreat ? TrekGame.InstallationPursuitChance : TrekGame.HostilePursuitChance;
+        this.enterprise.ensureAdvancedSystemsFields();
+        if (this.enterprise.phaseCloakTurns > 0)
+        {
+            pursuitChance *= TrekGame.PhaseCloakPursuitMultiplier;
+        }
+
+        previousSector.removeEntity(this.enterprise);
         this.currentSector = this.galaxyMap.lookup(qX, qY);
         this.currentSector.addEntityInFreeSubsector(this.enterprise);
 
+        if (pursuitCandidates.length && this.currentSector.emptySquares() > 0 && this.currentSector.countHostileEntities() < TrekGame.MaxPursuitSectorShips && Math.random() < pursuitChance)
+        {
+            let pursuer = pursuitCandidates[randomInt(0, pursuitCandidates.length - 1)];
+            previousSector.removeEntity(pursuer);
+            this.currentSector.addEntityInFreeSubsector(pursuer);
+            this.pursuitState = {active:true, turns:2};
+            gameOutputAppend("\nPURSUIT ALERT: hostile vessels are tracking your warp trail.");
+            gameOutputAppend("A hostile vessel drops out of warp behind the Enterprise.");
+        }
+
         gameOutputAppend("\nEntering galactic sector " + this.enterprise.sectorString());
+        this.warnOfCurrentInstallations();
+    }
+
+    reportInstallationScanWarnings()
+    {
+        let installationDetected = false;
+        let borgDetected = false;
+        for (let y = this.enterprise.sectorY - 1; y <= this.enterprise.sectorY + 1; y++)
+        {
+            for (let x = this.enterprise.sectorX - 1; x <= this.enterprise.sectorX + 1; x++)
+            {
+                let sector = this.galaxyMap.lookup(x, y);
+                if (!sector) continue;
+                if (sector.getHostileInstallations().length) installationDetected = true;
+                if (sector.countEntitiesOfType(BorgTranswarpHub)) borgDetected = true;
+            }
+        }
+        if (installationDetected) gameOutputAppend("\nLong-range sensors detect a hostile installation.");
+        if (borgDetected) gameOutputAppend("Borg transwarp signature detected. Tactical retreat advised.");
+    }
+
+    warnOfCurrentInstallations()
+    {
+        let installations = this.currentSector.getHostileInstallations();
+        if (installations.length) gameOutputAppend("\nLong-range sensors detect a hostile installation.");
+        if (this.currentSector.countEntitiesOfType(BorgTranswarpHub)) gameOutputAppend("Borg transwarp signature detected. Tactical retreat advised.");
     }
 
     statusString()
@@ -611,11 +680,37 @@ class TrekGame
         "SHIELD ENERGY         " + this.enterprise.shields + '\n' +
         "FREE ENERGY           " + this.enterprise.freeEnergy + '\n' +
         "HOSTILES REMAINING    " + this.hostileBreakdownString() + '\n' +
+        this.installationStatusString() +
         "STARBASES             " + this.starbaseStatusString() + '\n' +
         "OBJECTIVES            " + this.objectiveStatusString() + '\n' +
         this.advancedSystemsStatusString() +
         this.systemEffectsStatusString() +
         "</pre>";
+    }
+
+    installationStatusString()
+    {
+        this.phase6Defaults();
+        let installations = this.currentSector.getHostileInstallations();
+        let lines = [];
+        for (var x in installations)
+        {
+            let installation = installations[x];
+            installation.ensureInstallationFields();
+            let detail = installation.constructor.displayName;
+            if (this.currentSectorScanned && this.enterprise.canSeeEntity(installation))
+            {
+                detail += " shields " + installation.shields + " / integrity " + installation.integrity;
+            }
+            lines.push(detail);
+        }
+
+        let rval = lines.length ? "INSTALLATION          " + styledStatusToken(lines.join(" | "), "status-alert-red") + "\n" : "";
+        if (this.pursuitState.active)
+        {
+            rval += "PURSUIT               " + styledStatusToken("HOSTILE WARP TRACE", "status-alert-red") + "\n";
+        }
+        return rval;
     }
 
     conditionStatusString()
@@ -965,6 +1060,14 @@ class TrekGame
                     gameOutputAppend(EnemyType.displayName + " vessels : " + sensorHistory[EnemyType]);
                 }
             }
+            for (var x in TrekGame.InstallationTypes)
+            {
+                let InstallationType = TrekGame.InstallationTypes[x];
+                if (sensorHistory[InstallationType] > 0)
+                {
+                    gameOutputAppend(InstallationType.displayName + " : " + sensorHistory[InstallationType]);
+                }
+            }
 
             if (this.galaxyMap.lookup(sectorX, sectorY).countEntitiesOfType(StarBase) > 0)
             {
@@ -1074,7 +1177,7 @@ class TrekGame
             return;
         }
 
-        let enemylist = this.currentSector.getHostileEntities();
+        let enemylist = this.currentSector.getHostileTargets();
 
         if (!enemylist.length)
         {
@@ -1085,7 +1188,7 @@ class TrekGame
         this.enterprise.freeEnergy -= Enterprise.EnemyScanCost;
         this.currentSectorScanned = true;
 
-        gameOutputAppend("\nENEMY SHIP SCANNER REPORTS");
+        gameOutputAppend("\nHOSTILE TARGET SCANNER REPORTS");
         this.checkDistressBeacon(true);
 
         let e_max_of_min = 0;
@@ -1101,13 +1204,14 @@ class TrekGame
             ///\todo make this a subfunction of Enterprise...
 
             let kshields = k.shields;
+            let targetDurability = kshields + (typeof k.integrity == "number" ? k.integrity : 0);
             let dist_to_k = this.enterprise.distanceToObject(k);
 
             let minRandom = 2.0;
             let maxRandom = 3.0;
 
-            let e_required_max = dist_to_k * kshields / minRandom;
-            let e_required_min = dist_to_k * kshields / maxRandom;
+            let e_required_max = dist_to_k * targetDurability / minRandom;
+            let e_required_min = dist_to_k * targetDurability / maxRandom;
 
             e_max_of_min = Math.max(e_required_min, e_max_of_min);
             e_max_of_max = Math.max(e_required_max, e_max_of_max);
@@ -1124,7 +1228,8 @@ class TrekGame
             else
             {
                 gameOutputAppend("\nEnemy in subsector (" + k.subsectorString() + ")");
-                gameOutputAppend("Enemy shield level : " + kshields);
+                gameOutputAppend("Target type : " + k.constructor.displayName);
+                gameOutputAppend("Shield level : " + kshields + (typeof k.integrity == "number" ? " / Integrity : " + k.integrity : ""));
                 gameOutputAppend("Phaser energy to destroy : " + Math.round(e_required_min) + "-" + Math.round(e_required_max));
             }
         }
@@ -1165,6 +1270,7 @@ class TrekGame
             this.enterprise.sectorY+1
         );
 
+        this.reportInstallationScanWarnings();
         this.checkDistressBeacon(true);
         this.advanceStardate(1.0);
     }
@@ -1248,7 +1354,7 @@ class TrekGame
 
     advancedSystemCombatAvailable()
     {
-        if (!this.currentSector.countHostileEntities())
+        if (!this.currentSector.countHostileTargets())
         {
             gameOutputAppend("\nAdvanced combat systems require a hostile tactical contact.");
             return false;
@@ -1287,7 +1393,7 @@ class TrekGame
                 gameOutputAppend("\nChroniton lance cannot acquire a visible hostile target.");
                 return true;
             }
-            this.showMenu(new ChronitonLanceTargetMenu(this.currentSector.getHostileEntities(), this));
+            this.showMenu(new ChronitonLanceTargetMenu(this.currentSector.getHostileTargets(), this));
             return false;
         }
 
@@ -1311,13 +1417,13 @@ class TrekGame
     {
         let enterprise = this.enterprise;
         enterprise.ensureAdvancedSystemsFields();
-        if (!enterprise.chronitonLanceArmed || this.currentSector.getHostileEntities().indexOf(target) == -1 || !enterprise.canSeeEntity(target))
+        if (!enterprise.chronitonLanceArmed || this.currentSector.getHostileTargets().indexOf(target) == -1 || !enterprise.canSeeEntity(target))
         {
             gameOutputAppend("\nChroniton lance firing solution is no longer valid.");
             return false;
         }
 
-        let adjacentTargets = this.currentSector.getHostileEntities().filter(function(enemy)
+        let adjacentTargets = this.currentSector.getHostileTargets().filter(function(enemy)
         {
             return enemy != target && enemy.isAdjacentTo(target);
         }).slice();
@@ -1353,7 +1459,7 @@ class TrekGame
 
     applyTorpedoOverloadSplash(centerTarget, splashDamage)
     {
-        let adjacentHostiles = this.currentSector.getHostileEntities().filter(function(enemy)
+        let adjacentHostiles = this.currentSector.getHostileTargets().filter(function(enemy)
         {
             return enemy != centerTarget && enemy.isAdjacentTo(centerTarget);
         });
@@ -1384,7 +1490,7 @@ class TrekGame
             return true;
         }
 
-        let focusedMenu = new FocusedPhaserTargetMenu(this.currentSector.getHostileEntities(), this);
+        let focusedMenu = new FocusedPhaserTargetMenu(this.currentSector.getHostileTargets(), this);
         this.showMenu(focusedMenu);
         return false;
     }
@@ -1583,7 +1689,7 @@ class TrekGame
 
     combatStep()
     {
-        let advancedSystemsCombatTurn = this.currentSector.countHostileEntities() > 0;
+        let advancedSystemsCombatTurn = this.currentSector.countHostileTargets() > 0;
         this.enterprise.advanceTemporarySystemEffects();
         if (advancedSystemsCombatTurn)
         {
@@ -1591,11 +1697,24 @@ class TrekGame
         }
         this.currentSector.hostileEnemiesMove(this);
         this.currentSector.hostileEnemiesFire(this.enterprise, this);
+        let installations = this.currentSector.getHostileInstallations().slice();
+        for (var x in installations)
+        {
+            if (this.currentSector.sectorEntities.indexOf(installations[x]) != -1)
+            {
+                installations[x].combatStep(this);
+            }
+        }
         if (advancedSystemsCombatTurn)
         {
             this.enterprise.advanceAdvancedSystemsCombatTurn();
         }
         this.enterprise.components.ShortRangeSensors.generateCorruptGrid();
+        if (this.pursuitState.active)
+        {
+            this.pursuitState.turns--;
+            this.pursuitState.active = this.pursuitState.turns > 0;
+        }
     }
 
     updateStatus()
@@ -1679,11 +1798,11 @@ class TrekGame
             
             if (this.primeUniverse)
             {
-                updateMapFooter("E: ENTERPRISE | K/B/R : HOSTILES | S : STARBASE | ? : UNEXPLORED");
+                updateMapFooter("E: ENTERPRISE | K/B/R: SHIPS | {K}/{R}/[B]: INSTALLATIONS | S: STARBASE | ?: UNEXPLORED");
             }
             else
             {
-                updateMapFooter("E: ENTERPRISE | F/B/R : HOSTILES | S : STARBASE | ? : UNEXPLORED");
+                updateMapFooter("E: ENTERPRISE | F/B/R: SHIPS | {K}/{R}/[B]: INSTALLATIONS | S: STARBASE | ?: UNEXPLORED");
             }
         }
         else
@@ -1759,6 +1878,7 @@ class TrekGame
 
     updateGame()
     {
+        this.phase6Defaults();
         this.updateDisplay();
         this.starbasesScan();
         this.enterpriseShortRangeScan();
@@ -1927,7 +2047,7 @@ class TrekGame
             flags.push("DOCKED");
         }
 
-        if (this.currentSector.countHostileEntities())
+        if (this.currentSector.countHostileTargets())
         {
             flags.push("RED ALERT");
 
@@ -2022,6 +2142,18 @@ class TrekGame
                     if (identifiers.indexOf('E') != -1)
                     {
                         identifierClass = "map-enterprise";
+                    }
+                    else if (identifiers.indexOf('[B]') != -1)
+                    {
+                        identifierClass = "map-borg-installation";
+                    }
+                    else if (identifiers.indexOf('{R}') != -1)
+                    {
+                        identifierClass = "map-breen-installation";
+                    }
+                    else if (identifiers.indexOf('{K}') != -1)
+                    {
+                        identifierClass = "map-klingon-installation";
                     }
                     else if (identifiers.indexOf('B') != -1)
                     {
@@ -2120,11 +2252,17 @@ function clickGridHandler(x,y)
 }
 
 TrekGame.EnemyTypes = [Klingon, Borg, Breen];
-TrekGame.EntityTypes = [Star, StarBase, Klingon, Borg, Breen, Planet];
+TrekGame.InstallationTypes = [KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub];
+TrekGame.HostileTargetTypes = TrekGame.EnemyTypes.concat(TrekGame.InstallationTypes);
+TrekGame.EntityTypes = [Star, StarBase, Klingon, Borg, Breen, KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub, Planet];
 TrekGame.BaseMissionTime = 25;
 TrekGame.MissionTimeSpread = 10;
 TrekGame.BombardCost = 3;
 TrekGame.BombardReinforcementSize = 5;
+TrekGame.HostilePursuitChance = .18;
+TrekGame.InstallationPursuitChance = .38;
+TrekGame.PhaseCloakPursuitMultiplier = .2;
+TrekGame.MaxPursuitSectorShips = 5;
 
 function createEntityMap(entityList)
 {

@@ -59,6 +59,18 @@ function mapCssClassForEntity(gameObject)
     {
         return "map-breen";
     }
+    if (gameObject.constructor == KlingonBattleStation)
+    {
+        return "map-klingon-installation";
+    }
+    if (gameObject.constructor == BreenDampeningArray)
+    {
+        return "map-breen-installation";
+    }
+    if (gameObject.constructor == BorgTranswarpHub)
+    {
+        return "map-borg-installation";
+    }
     if (gameObject.constructor == StarBase)
     {
         return "map-starbase";

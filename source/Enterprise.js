@@ -488,7 +488,7 @@ class Enterprise extends GameObject
 
     conditionString(game)
     {
-        if (game.currentSector.countHostileEntities())
+        if (game.currentSector.countHostileTargets())
         {
             return "RED";
         }
@@ -637,7 +637,7 @@ class Enterprise extends GameObject
 
         this.freeEnergy -= energy;
 
-        gameOutputAppend("\nTACTICAL: Focused phaser strike locked on " + target.constructor.displayName + " vessel at subsector " + target.subsectorString() + ". Emitters holding a narrow firing solution.");
+        gameOutputAppend("\nTACTICAL: Focused phaser strike locked on " + target.constructor.displayName + " at subsector " + target.subsectorString() + ". Emitters holding a narrow firing solution.");
 
         let dist = this.distanceToObject(target);
         let damageAttenuated = energy / dist;
@@ -787,7 +787,7 @@ class Enterprise extends GameObject
     lrsString(trekGame, galaxyMap)
     {
        
-        let klingonLRS = this.lrsStringEntityTypes(galaxyMap, TrekGame.EnemyTypes);
+        let klingonLRS = this.lrsStringEntityTypes(galaxyMap, TrekGame.HostileTargetTypes);
         let starLRS = this.lrsStringEntityType(galaxyMap, Star);
         //let starbaseLRS = this.lrsStringEntityType(galaxyMap, StarBase);
 
@@ -899,7 +899,7 @@ Enterprise.TorpedoOverloadEnergyCost = 40;
 Enterprise.TorpedoOverloadSplashDamage = 120;
 Enterprise.FocusedPhaserMinimumEnergy = 150;
 Enterprise.EnemyScanCost = 10;
-Enterprise.PhaserTargets = [Klingon, Borg, Breen];           // future extension : this list could be dynamic based on evolving gameplay alliances, etc :) 
+Enterprise.PhaserTargets = [Klingon, Borg, Breen, KlingonBattleStation, BreenDampeningArray, BorgTranswarpHub];
 Enterprise.EnergyCostPerSubsector = 1.0;        // Warp cost per subsector moved
 Enterprise.EnergyCostPerSector = 10.0;          // Warp cost per sector moved
 Enterprise.DamagePassthroughRatio = .25;        // if damage is 25% of shields or more, pass damage through to components

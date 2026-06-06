@@ -282,7 +282,7 @@ class MainMenu extends Menu
                         gameOutputAppend("\nPhasers too damaged to fire!");
                         return true;
                     }
-                    if (trekgame.currentSector.countHostileEntities())
+                    if (trekgame.currentSector.countHostileTargets())
                     {
                         let pm = new PhaserMenu(trekgame);
                         trekgame.showMenu(pm);
@@ -314,7 +314,7 @@ class MainMenu extends Menu
                             // automatic targeting enabled. push a menu of targets.
                             console.log("auto targeting path");
 
-                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileEntities(), trekgame);
+                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileTargets(), trekgame);
 
                             trekgame.awaitInput(torpMenu.toString(), 1, function(inputline){return torpMenu.chooseOption(inputline);});
                         }
@@ -348,7 +348,7 @@ class MainMenu extends Menu
                         gameOutputAppend("\nLoading photon torpedo overload. One torpedo and extra energy will be expended.");
                         if (trekgame.enterprise.components.PhotonTubes.targetingAvailable())
                         {
-                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileEntities(), trekgame, true);
+                            let torpMenu = new TorpedoMenu(trekgame.currentSector.getHostileTargets(), trekgame, true);
                             trekgame.awaitInput(torpMenu.toString(), 1, function(inputline){return torpMenu.chooseOption(inputline);});
                         }
                         else

@@ -2,7 +2,7 @@ function IncludeSource()
 {
 echo "" >> ../trekgame.js
 echo "" >> ../trekgame.js
-echo "// ------- $1 ------- ">> ../trekgame.js
+echo "// ------- $1 -------">> ../trekgame.js
 cat $1 >> ../trekgame.js
 }
 
@@ -22,6 +22,7 @@ IncludeSource GameObject.js
 IncludeSource StarBase.js
 IncludeSource Planet.js
 IncludeSource Klingon.js
+IncludeSource HostileInstallation.js
 IncludeSource Star.js
 IncludeSource ShipComponents.js
 IncludeSource Enterprise.js
