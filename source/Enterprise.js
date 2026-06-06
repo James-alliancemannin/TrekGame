@@ -5,6 +5,57 @@ class Enterprise extends GameObject
         return !this.components.ShortRangeSensors.isSubsectorCorrupt(entity.subsectorX, entity.subsectorY);
     }
 
+    ensureAdvancedSystemsFields()
+    {
+        let defaults =
+        {
+            adaptiveShieldTurns : 0,
+            adaptiveShieldCooldown : 0,
+            chronitonLanceChargeTurns : 0,
+            chronitonLanceArmed : false,
+            chronitonLanceCooldown : 0,
+            phaseCloakTurns : 0,
+            phaseCloakCooldown : 0,
+            temporalStrainTurns : 0
+        };
+
+        for (var key in defaults)
+        {
+            if (typeof this[key] != typeof defaults[key])
+            {
+                this[key] = defaults[key];
+            }
+        }
+    }
+
+    advancedDefenseActive()
+    {
+        this.ensureAdvancedSystemsFields();
+        return this.adaptiveShieldTurns > 0 || this.phaseCloakTurns > 0;
+    }
+
+    lanceCharging()
+    {
+        this.ensureAdvancedSystemsFields();
+        return this.chronitonLanceChargeTurns > 0;
+    }
+
+    lanceShieldLimit()
+    {
+        return this.lanceCharging() ? Enterprise.ChronitonLanceShieldCap : this.components.ShieldControl.maxShields();
+    }
+
+    phaserHitAvailable()
+    {
+        if (!this.components.PhaserControl.isHit())
+        {
+            return false;
+        }
+
+        this.ensureAdvancedSystemsFields();
+        return this.temporalStrainTurns <= 0 || Math.random() >= Enterprise.TemporalStrainPhaserMissChance;
+    }
+
     visiblePhaserTargets(game)
     {
         let targets = game.currentSector.getEntitiesOfTypes(Enterprise.PhaserTargets);
@@ -18,6 +69,170 @@ class Enterprise extends GameObject
         {
             this.components[key].advanceDisruption();
         }
+    }
+
+    advanceAdvancedSystemsCombatTurn()
+    {
+        this.ensureAdvancedSystemsFields();
+
+        if (this.temporalStrainTurns > 0)
+        {
+            this.temporalStrainTurns--;
+        }
+
+        if (this.adaptiveShieldTurns > 0)
+        {
+            this.adaptiveShieldTurns--;
+            if (this.adaptiveShieldTurns == 1)
+            {
+                gameOutputAppend("\nAdaptive matrix destabilising: 1 turn remaining.");
+            }
+            else if (this.adaptiveShieldTurns == 0)
+            {
+                this.adaptiveShieldCooldown = Enterprise.AdaptiveShieldCooldownTurns;
+                gameOutputAppend("\nADAPTIVE SHIELD MATRIX COLLAPSED");
+            }
+        }
+        else if (this.adaptiveShieldCooldown > 0)
+        {
+            this.adaptiveShieldCooldown--;
+        }
+
+        if (this.phaseCloakTurns > 0)
+        {
+            this.phaseCloakTurns--;
+            if (this.phaseCloakTurns == 0)
+            {
+                this.phaseCloakCooldown = Enterprise.PhaseCloakCooldownTurns;
+                this.temporalStrainTurns = Math.max(this.temporalStrainTurns, Enterprise.PhaseCloakStrainTurns);
+                gameOutputAppend("\nEmergency phase cloak disengaged. Targeting sensors require recalibration.");
+            }
+        }
+        else if (this.phaseCloakCooldown > 0)
+        {
+            this.phaseCloakCooldown--;
+        }
+
+        if (this.chronitonLanceChargeTurns > 0)
+        {
+            this.chronitonLanceChargeTurns--;
+            if (this.chronitonLanceChargeTurns == 0)
+            {
+                this.chronitonLanceArmed = true;
+                gameOutputAppend("\nCHRONITON LANCE ARMED.");
+            }
+            else
+            {
+                gameOutputAppend("\nCHRONITON LANCE CHARGE: " + this.chronitonLanceChargeTurns + " combat turns remaining. Defensive envelope remains reduced.");
+            }
+        }
+        else if (this.chronitonLanceCooldown > 0)
+        {
+            this.chronitonLanceCooldown--;
+        }
+
+    }
+
+    activateAdaptiveShieldMatrix()
+    {
+        this.ensureAdvancedSystemsFields();
+        if (this.adaptiveShieldTurns > 0 || this.adaptiveShieldCooldown > 0)
+        {
+            gameOutputAppend("\nAdaptive shield matrix unavailable: active cycle or cooldown in progress.");
+            return false;
+        }
+        if (this.phaseCloakTurns > 0 || this.lanceCharging())
+        {
+            gameOutputAppend("\nAdaptive shield geometry cannot stabilize alongside the current experimental system.");
+            return false;
+        }
+        if (this.freeEnergy < Enterprise.AdaptiveShieldEnergyCost)
+        {
+            gameOutputAppend("\nInsufficient free energy for the adaptive shield matrix.");
+            return false;
+        }
+
+        this.freeEnergy -= Enterprise.AdaptiveShieldEnergyCost;
+        this.adaptiveShieldTurns = Enterprise.AdaptiveShieldDuration;
+        gameOutputAppend("\nADAPTIVE SHIELD MATRIX ONLINE");
+        return true;
+    }
+
+    beginChronitonLanceCharge()
+    {
+        this.ensureAdvancedSystemsFields();
+        if (this.chronitonLanceArmed || this.lanceCharging() || this.chronitonLanceCooldown > 0)
+        {
+            gameOutputAppend("\nChroniton lance unavailable: charge cycle or cooldown already in progress.");
+            return false;
+        }
+        if (this.advancedDefenseActive())
+        {
+            gameOutputAppend("\nTemporal coils cannot charge while an advanced defensive field is active.");
+            return false;
+        }
+        if (this.freeEnergy < Enterprise.ChronitonLanceChargeCost)
+        {
+            gameOutputAppend("\nInsufficient free energy to charge the chroniton lance.");
+            return false;
+        }
+
+        this.freeEnergy -= Enterprise.ChronitonLanceChargeCost;
+        this.chronitonLanceChargeTurns = Enterprise.ChronitonLanceChargeDuration;
+        if (this.shields > Enterprise.ChronitonLanceShieldCap)
+        {
+            this.freeEnergy += this.shields - Enterprise.ChronitonLanceShieldCap;
+            this.shields = Enterprise.ChronitonLanceShieldCap;
+        }
+        gameOutputAppend("\nCHRONITON LANCE CHARGING: shields rerouted to temporal coils.");
+        gameOutputAppend("Warning: defensive envelope reduced while weapon charges.");
+        return true;
+    }
+
+    cancelChronitonLanceCharge()
+    {
+        this.ensureAdvancedSystemsFields();
+        if (!this.lanceCharging())
+        {
+            gameOutputAppend("\nNo chroniton lance charge is in progress.");
+            return false;
+        }
+
+        this.chronitonLanceChargeTurns = 0;
+        this.chronitonLanceCooldown = Enterprise.ChronitonLanceCancelCooldownTurns;
+        gameOutputAppend("\nChroniton lance charge cancelled. Temporal coils enter a short recovery cycle.");
+        return true;
+    }
+
+    activatePhaseCloak()
+    {
+        this.ensureAdvancedSystemsFields();
+        if (this.phaseCloakTurns > 0 || this.phaseCloakCooldown > 0)
+        {
+            gameOutputAppend("\nEmergency phase cloak unavailable: active cycle or cooldown in progress.");
+            return false;
+        }
+        if (this.adaptiveShieldTurns > 0 || this.lanceCharging())
+        {
+            gameOutputAppend("\nPhase cloak cannot engage alongside the current experimental field.");
+            return false;
+        }
+        if (this.freeEnergy < Enterprise.PhaseCloakEnergyCost)
+        {
+            gameOutputAppend("\nInsufficient free energy for emergency phase cloak.");
+            return false;
+        }
+
+        this.freeEnergy -= Enterprise.PhaseCloakEnergyCost;
+        this.phaseCloakTurns = Enterprise.PhaseCloakDuration;
+        gameOutputAppend("\nEMERGENCY PHASE CLOAK ENGAGED. Enterprise is slipping out of hostile weapons phase.");
+        return true;
+    }
+
+    phaseCloakEvadesAttack()
+    {
+        this.ensureAdvancedSystemsFields();
+        return this.phaseCloakTurns > 0 && Math.random() < Enterprise.PhaseCloakMissChance;
     }
 
     bombardPlanet(trekgame, planet)
@@ -114,6 +329,7 @@ class Enterprise extends GameObject
         this.dockStarbase = null;
         this.sensorHistory = new SensorHistory();
         this.components.ShortRangeSensors.generateCorruptGrid();
+        this.ensureAdvancedSystemsFields();
     }
 
     // called on navigation
@@ -219,7 +435,7 @@ class Enterprise extends GameObject
             throw "Invalid value for shield level"; 
         }
 
-        let adjustedShields = Math.min(this.components.ShieldControl.maxShields(), newShields);
+        let adjustedShields = Math.min(this.lanceShieldLimit(), newShields);
 
         if (!(adjustedShields > 0))
         {
@@ -227,7 +443,11 @@ class Enterprise extends GameObject
         }
         if ((adjustedShields < newShields))
         {
-            if ( (adjustedShields < ShieldControlComponent.MaxShields))
+            if (this.lanceCharging() && adjustedShields == Enterprise.ChronitonLanceShieldCap)
+            {
+                gameOutputAppend("\nChroniton charging suppresses shields above " + adjustedShields);
+            }
+            else if ( (adjustedShields < ShieldControlComponent.MaxShields))
             {
                 gameOutputAppend("\nBecause of damage to the deflector shields, we cannot raise shields above " + adjustedShields);
             }
@@ -303,13 +523,26 @@ class Enterprise extends GameObject
             return;
         }
 
-        let hitRatio = energy / this.shields;
+        this.ensureAdvancedSystemsFields();
+        if (this.adaptiveShieldTurns > 0)
+        {
+            energy = Math.max(1, Math.floor(energy * Enterprise.AdaptiveShieldDamageMultiplier));
+            gameOutputAppend("Incoming weapons refract across the adaptive shield geometry.");
+        }
+
+        let hitRatio = this.shields > 0 ? energy / this.shields : Infinity;
 
         if (this.shields < energy)
         {
+            if (this.adaptiveShieldTurns > 0)
+            {
+                this.shields = 0.0;
+                gameOutputAppend("Adaptive matrix absorbs the residual hull-breach energy.");
+                return;
+            }
+
             this.hitNoShields = true;
             this.shields = 0.0;
-
             return;
         }
 
@@ -365,7 +598,7 @@ class Enterprise extends GameObject
             let damageAttenuated = damagePerTarget / dist;
             let damageFinal = Math.floor(randomFloat(2.0, 3.0) * damageAttenuated);
 
-            if (this.components.PhaserControl.isHit())
+            if (this.phaserHitAvailable())
             {
                target.onPhaserHit(damageFinal, game);
             }
@@ -409,7 +642,7 @@ class Enterprise extends GameObject
         let damageAttenuated = energy / dist;
         let damageFinal = Math.floor(randomFloat(2.7, 3.7) * damageAttenuated);
 
-        if (this.components.PhaserControl.isHit())
+        if (this.phaserHitAvailable())
         {
             target.onPhaserHit(damageFinal, game);
         }
@@ -651,6 +884,7 @@ class Enterprise extends GameObject
 
         rval.components.ShortRangeSensors.corruptGrid = new Grid();
         rval.components.ShortRangeSensors.corruptGrid.contents = jsData.components.ShortRangeSensors.corruptGrid.contents;
+        rval.ensureAdvancedSystemsFields();
 
         return rval;
     }
@@ -671,3 +905,23 @@ Enterprise.DamagePassthroughRatio = .25;        // if damage is 25% of shields o
 Enterprise.RandomPassthroughRatio = .25;        // 25% chance that damage will pass through to ship components regardless of shields
 Enterprise.MinComponentRepairPerTurn = 1;       // integrity min autorepair per component
 Enterprise.MaxComponentRepairPerTurn = 5;       // integrity max autorepair per component
+
+Enterprise.AdaptiveShieldEnergyCost = 500;
+Enterprise.AdaptiveShieldDuration = 3;
+Enterprise.AdaptiveShieldCooldownTurns = 6;
+Enterprise.AdaptiveShieldDamageMultiplier = .08;
+Enterprise.ChronitonLanceChargeCost = 350;
+Enterprise.ChronitonLanceChargeDuration = 3;
+Enterprise.ChronitonLanceShieldCap = 180;
+Enterprise.ChronitonLanceDamage = 900;
+Enterprise.ChronitonLanceShockwaveDamage = 120;
+Enterprise.ChronitonLanceCooldownTurns = 9;
+Enterprise.ChronitonLanceCancelCooldownTurns = 2;
+Enterprise.ChronitonLanceEnergyDrain = 200;
+Enterprise.TemporalStrainTurns = 3;
+Enterprise.TemporalStrainPhaserMissChance = .25;
+Enterprise.PhaseCloakEnergyCost = 400;
+Enterprise.PhaseCloakDuration = 2;
+Enterprise.PhaseCloakCooldownTurns = 6;
+Enterprise.PhaseCloakMissChance = .8;
+Enterprise.PhaseCloakStrainTurns = 2;

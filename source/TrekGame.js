@@ -23,6 +23,7 @@ class TrekGame
 
             gamerval.mapScreenGalaxy = false;
             gamerval.phase3Defaults();
+            gamerval.enterprise.ensureAdvancedSystemsFields();
 
             gamerval.checkStarbaseDock();
             gamerval.checkPlanetBombard();
@@ -612,6 +613,7 @@ class TrekGame
         "HOSTILES REMAINING    " + this.hostileBreakdownString() + '\n' +
         "STARBASES             " + this.starbaseStatusString() + '\n' +
         "OBJECTIVES            " + this.objectiveStatusString() + '\n' +
+        this.advancedSystemsStatusString() +
         this.systemEffectsStatusString() +
         "</pre>";
     }
@@ -701,6 +703,51 @@ class TrekGame
         }
 
         return objectiveStrings.join(" | ");
+    }
+
+    advancedSystemsStatusString()
+    {
+        let enterprise = this.enterprise;
+        enterprise.ensureAdvancedSystemsFields();
+        let systems = [];
+
+        if (enterprise.adaptiveShieldTurns > 0)
+        {
+            systems.push(styledStatusToken("matrix " + enterprise.adaptiveShieldTurns + "T", "status-advanced-shield"));
+        }
+        else if (enterprise.adaptiveShieldCooldown > 0)
+        {
+            systems.push(styledStatusToken("matrix CD " + enterprise.adaptiveShieldCooldown, "status-cooldown"));
+        }
+
+        if (enterprise.chronitonLanceArmed)
+        {
+            systems.push(styledStatusToken("lance ARMED", "status-lance-armed"));
+        }
+        else if (enterprise.lanceCharging())
+        {
+            systems.push(styledStatusToken("lance charge " + enterprise.chronitonLanceChargeTurns + "T / shields capped " + Enterprise.ChronitonLanceShieldCap, "status-lance-charge"));
+        }
+        else if (enterprise.chronitonLanceCooldown > 0)
+        {
+            systems.push(styledStatusToken("lance CD " + enterprise.chronitonLanceCooldown, "status-cooldown"));
+        }
+
+        if (enterprise.phaseCloakTurns > 0)
+        {
+            systems.push(styledStatusToken("phase cloak " + enterprise.phaseCloakTurns + "T", "status-phase-cloak"));
+        }
+        else if (enterprise.phaseCloakCooldown > 0)
+        {
+            systems.push(styledStatusToken("cloak CD " + enterprise.phaseCloakCooldown, "status-cooldown"));
+        }
+
+        if (enterprise.temporalStrainTurns > 0)
+        {
+            systems.push(styledStatusToken("temporal strain " + enterprise.temporalStrainTurns + "T", "status-disruption"));
+        }
+
+        return systems.length ? "ADVANCED SYSTEMS      " + systems.join(" | ") + "\n" : "";
     }
 
     systemEffectsStatusString()
@@ -1180,6 +1227,120 @@ class TrekGame
         this.awaitInput(menu.toString(), 1, function(inputline){return menu.chooseOption(inputline)});
     }
 
+    showAdvancedSystemsMenu()
+    {
+        let enterprise = this.enterprise;
+        enterprise.ensureAdvancedSystemsFields();
+        let advancedMenu = new Menu();
+        advancedMenu.headerString = "ADVANCED SYSTEMS - EXPERIMENTAL POWER ALLOCATION:\n";
+        let trekgame = this;
+
+        advancedMenu.options.push
+        (
+            new MenuOption("1", ") ", "ADAPTIVE SHIELD MATRIX (" + Enterprise.AdaptiveShieldEnergyCost + " ENERGY)", function(){return trekgame.activateAdaptiveShieldMatrix();}),
+            new MenuOption("2", ") ", enterprise.chronitonLanceArmed ? "FIRE CHRONITON LANCE" : (enterprise.lanceCharging() ? "CANCEL CHRONITON LANCE CHARGE" : "CHRONITON LANCE (" + Enterprise.ChronitonLanceChargeCost + " ENERGY)"), function(){return trekgame.chronitonLanceMenuAction();}),
+            new MenuOption("3", ") ", "EMERGENCY PHASE CLOAK (" + Enterprise.PhaseCloakEnergyCost + " ENERGY)", function(){return trekgame.activatePhaseCloak();}),
+            new MenuOption("4", ") ", "BACK", function(){return true;})
+        );
+
+        this.showMenu(advancedMenu);
+    }
+
+    advancedSystemCombatAvailable()
+    {
+        if (!this.currentSector.countHostileEntities())
+        {
+            gameOutputAppend("\nAdvanced combat systems require a hostile tactical contact.");
+            return false;
+        }
+        return true;
+    }
+
+    activateAdaptiveShieldMatrix()
+    {
+        if (this.advancedSystemCombatAvailable() && this.enterprise.activateAdaptiveShieldMatrix())
+        {
+            this.combatStep();
+        }
+        return true;
+    }
+
+    activatePhaseCloak()
+    {
+        if (this.advancedSystemCombatAvailable() && this.enterprise.activatePhaseCloak())
+        {
+            this.combatStep();
+        }
+        return true;
+    }
+
+    chronitonLanceMenuAction()
+    {
+        let enterprise = this.enterprise;
+        enterprise.ensureAdvancedSystemsFields();
+
+        if (enterprise.chronitonLanceArmed)
+        {
+            let visibleTargets = enterprise.visiblePhaserTargets(this);
+            if (!visibleTargets.length)
+            {
+                gameOutputAppend("\nChroniton lance cannot acquire a visible hostile target.");
+                return true;
+            }
+            this.showMenu(new ChronitonLanceTargetMenu(this.currentSector.getHostileEntities(), this));
+            return false;
+        }
+
+        if (enterprise.lanceCharging())
+        {
+            if (enterprise.cancelChronitonLanceCharge())
+            {
+                this.combatStep();
+            }
+            return true;
+        }
+
+        if (this.advancedSystemCombatAvailable() && enterprise.beginChronitonLanceCharge())
+        {
+            this.combatStep();
+        }
+        return true;
+    }
+
+    fireChronitonLance(target)
+    {
+        let enterprise = this.enterprise;
+        enterprise.ensureAdvancedSystemsFields();
+        if (!enterprise.chronitonLanceArmed || this.currentSector.getHostileEntities().indexOf(target) == -1 || !enterprise.canSeeEntity(target))
+        {
+            gameOutputAppend("\nChroniton lance firing solution is no longer valid.");
+            return false;
+        }
+
+        let adjacentTargets = this.currentSector.getHostileEntities().filter(function(enemy)
+        {
+            return enemy != target && enemy.isAdjacentTo(target);
+        }).slice();
+
+        enterprise.chronitonLanceArmed = false;
+        enterprise.chronitonLanceCooldown = Enterprise.ChronitonLanceCooldownTurns + 1;
+        enterprise.temporalStrainTurns = Enterprise.TemporalStrainTurns + 1;
+        enterprise.freeEnergy = Math.max(0, enterprise.freeEnergy - Enterprise.ChronitonLanceEnergyDrain);
+
+        gameOutputAppend("\nCHRONITON LANCE FIRING. Temporal discharge tears through the hostile vessel.");
+        target.onTemporalLanceHit(Enterprise.ChronitonLanceDamage, this);
+        for (var x in adjacentTargets)
+        {
+            if (this.currentSector.sectorEntities.indexOf(adjacentTargets[x]) != -1)
+            {
+                adjacentTargets[x].onTemporalLanceHit(Enterprise.ChronitonLanceShockwaveDamage, this, true);
+            }
+        }
+        gameOutputAppend("Temporal coils exhausted. System cooldown initiated.");
+        this.combatStep();
+        return true;
+    }
+
     torpedoHandler(target, overloaded=false)
     {
         if (this.enterprise.fireTorpedo(this, target, overloaded))
@@ -1422,13 +1583,18 @@ class TrekGame
 
     combatStep()
     {
+        let advancedSystemsCombatTurn = this.currentSector.countHostileEntities() > 0;
         this.enterprise.advanceTemporarySystemEffects();
-        if (this.currentSector.countHostileEntities())
+        if (advancedSystemsCombatTurn)
         {
             this.applyStationSupport();
         }
         this.currentSector.hostileEnemiesMove(this);
         this.currentSector.hostileEnemiesFire(this.enterprise, this);
+        if (advancedSystemsCombatTurn)
+        {
+            this.enterprise.advanceAdvancedSystemsCombatTurn();
+        }
         this.enterprise.components.ShortRangeSensors.generateCorruptGrid();
     }
 

@@ -167,7 +167,7 @@ class MainMenu extends Menu
                         suggestedStr += "\nSUGGESTED SHIELD LEVEL FOR CURRENT COMBAT SITUATION: " + suggestedShieldLevel;
                     }
 
-                    let maxStr = "\nMAXIMUM SHIELD ENERGY: " + trekgame.enterprise.components.ShieldControl.maxShields();
+                    let maxStr = "\nMAXIMUM SHIELD ENERGY: " + trekgame.enterprise.lanceShieldLimit();
 
                     let headerStr = "ENTER NEW SHIELD ENERGY LEVEL. \nAVAILABLE ENERGY: " + totalEnergy + maxStr + suggestedStr;
 
@@ -242,6 +242,18 @@ class MainMenu extends Menu
                 function()
                 {
                     return trekgame.awaitInput(trekgame.computerMenu.toString(), 1, function(inputline){return trekgame.computerMenu.chooseOption(inputline);});
+                }
+            ),
+
+            new MenuOption
+            (
+                "6",
+                ") ",
+                "ADVANCED SYSTEMS",
+                function()
+                {
+                    trekgame.showAdvancedSystemsMenu();
+                    return false;
                 }
             )
         );
@@ -362,3 +374,39 @@ class MainMenu extends Menu
 
 }
 
+
+
+class ChronitonLanceTargetMenu extends Menu
+{
+    constructor(targetList, trekgame)
+    {
+        super();
+        this.headerString = "CHRONITON LANCE ARMED. SELECT VISIBLE HOSTILE TARGET:\n";
+
+        for (var x = 0; x < targetList.length; x++)
+        {
+            let target = targetList[x];
+            if (!trekgame.enterprise.canSeeEntity(target))
+            {
+                continue;
+            }
+
+            this.options.push
+            (
+                new MenuOption
+                (
+                    this.options.length + 1,
+                    ") ",
+                    target.constructor.displayName.toUpperCase() + " AT SUBSECTOR (" + target.subsectorString() + ")",
+                    function()
+                    {
+                        trekgame.fireChronitonLance(target);
+                        return true;
+                    }
+                )
+            );
+        }
+
+        this.options.push(new MenuOption(this.options.length + 1, ") ", "BACK", function(){return true;}));
+    }
+}
