@@ -185,7 +185,8 @@ class Enterprise extends GameObject
             this.shields = Enterprise.ChronitonLanceShieldCap;
         }
         gameOutputAppend("\nCHRONITON LANCE CHARGING: shields rerouted to temporal coils.");
-        gameOutputAppend("Warning: defensive envelope reduced while weapon charges.");
+        gameOutputAppend("Temporal coils are drawing shield power, but residual defences remain online.");
+        gameOutputAppend("Warning: Chroniton Lance charge leaves defensive systems weakened.");
         return true;
     }
 
@@ -912,7 +913,7 @@ Enterprise.AdaptiveShieldCooldownTurns = 6;
 Enterprise.AdaptiveShieldDamageMultiplier = .08;
 Enterprise.ChronitonLanceChargeCost = 350;
 Enterprise.ChronitonLanceChargeDuration = 3;
-Enterprise.ChronitonLanceShieldCap = 180;
+Enterprise.ChronitonLanceShieldCap = 500;
 Enterprise.ChronitonLanceDamage = 900;
 Enterprise.ChronitonLanceShockwaveDamage = 120;
 Enterprise.ChronitonLanceCooldownTurns = 9;
