@@ -28,6 +28,21 @@ class HostileEnemy extends GameObject
         }
     }
 
+    onTemporalLanceHit(energy, game, shockwave=false)
+    {
+        gameOutputAppend("\n" + (shockwave ? "Temporal shockwave strikes " : "Temporal discharge tears through ") + this.enemyDescription(game) + " at subsector " + this.subsectorString() + " for " + energy + " damage.");
+        this.shields -= energy;
+
+        if (this.shields <= 0)
+        {
+            game.destroyHostile(this);
+        }
+        else if (game.currentSectorScanned && game.enterprise.canSeeEntity(this))
+        {
+            gameOutputAppend("" + this.shields + " units remain.");
+        }
+    }
+
     onPhaserHit(energy, game)
     {
         let shieldDeflectionLevel = this.constructor.shieldDeflectionPercent * this.shields;
@@ -76,14 +91,22 @@ class HostileEnemy extends GameObject
         return Math.round(energyToFire / dist);
     }
 
-    firePhasers(target, game)
+    firePhasers(target, game, phaseCloakChecked=false)
     {
+        if (!phaseCloakChecked && target.constructor == Enterprise && target.phaseCloakEvadesAttack())
+        {
+            let cloakSubsector = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
+            gameOutputAppend("\n" + this.constructor.displayName + " fire from subsector " + cloakSubsector + " passes through the Enterprise phase shadow.");
+            return false;
+        }
+
         let dist = this.distanceToObject(target);
         let phaserDamage = this.phaserDamageBase(dist) * randomInt(this.constructor.MinPhaserMultiplier, this.constructor.MaxPhaserMultiplier);
 
         let sstr = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
         gameOutputAppend("\n" + this.constructor.displayName + " hit from subsector " + sstr + " for " + phaserDamage + " units");
         target.onPhaserHit(phaserDamage, game);
+        return true;
     }
 
     minPhaserDamage()
@@ -229,6 +252,13 @@ class Klingon extends HostileEnemy
 
     firePhasers(target, game)
     {
+        if (target.constructor == Enterprise && target.phaseCloakEvadesAttack())
+        {
+            let cloakSubsector = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
+            gameOutputAppend("\n" + this.constructor.displayName + " fire from subsector " + cloakSubsector + " passes through the Enterprise phase shadow.");
+            return false;
+        }
+
         let dist = this.distanceToObject(target);
         if (target.constructor == Enterprise && dist <= Klingon.AggressiveStrikeRange && Math.random() < Klingon.AggressiveStrikeChance)
         {
@@ -236,10 +266,10 @@ class Klingon extends HostileEnemy
             let sstr = game.enterprise.canSeeEntity(this) ? this.subsectorString() : " ???? ";
             gameOutputAppend("\nRED ALERT: Klingon close assault from subsector " + sstr + " for " + phaserDamage + " units; evasive pattern compromised.");
             target.onPhaserHit(phaserDamage, game);
-            return;
+            return true;
         }
 
-        super.firePhasers(target, game);
+        return super.firePhasers(target, game, true);
     }
     
     static maxInstancesSector()
@@ -359,11 +389,11 @@ class Breen extends HostileEnemy
 
     firePhasers(target, game)
     {
-        super.firePhasers(target, game);
+        let attackHit = super.firePhasers(target, game);
 
-        if (target.constructor == StarBase)
+        if (!attackHit || target.constructor == StarBase)
         {
-            if (target.isOperational() && Math.random() < Breen.StationDisruptionChance)
+            if (attackHit && target.isOperational() && Math.random() < Breen.StationDisruptionChance)
             {
                 target.disable(game);
                 gameOutputAppend("\nDISRUPTION: Breen energy dampener disrupts starbase support and nearby sensors!");
@@ -371,7 +401,14 @@ class Breen extends HostileEnemy
             return;
         }
 
-        if (!target.isDestroyed() && Math.random() < Breen.DisruptionChance)
+        let disruptionChance = Breen.DisruptionChance;
+        target.ensureAdvancedSystemsFields();
+        if (target.adaptiveShieldTurns > 0)
+        {
+            disruptionChance *= Breen.AdaptiveMatrixDisruptionMultiplier;
+        }
+
+        if (!target.isDestroyed() && Math.random() < disruptionChance)
         {
             let disruptionTargets = [target.components.ShortRangeSensors, target.components.PhaserControl, target.components.PhotonTubes];
             let component = disruptionTargets[randomInt(0, disruptionTargets.length - 1)];
@@ -474,3 +511,5 @@ Breen.ChanceMoveTowardEnterprise = .25;
 Breen.DisruptionChance = .18;
 Breen.DisruptionTurns = 1;
 Breen.StationDisruptionChance = .35;
+
+Breen.AdaptiveMatrixDisruptionMultiplier = .35;
